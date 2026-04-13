@@ -26,7 +26,7 @@ class AuthController extends Controller
 
         $user = Auth::user();
         $token = $user->createToken('auth_token')->plainTextToken;
-
+        
         return response()->json([
             'status' => 'success',
             'message' => 'Login successful',
@@ -40,11 +40,11 @@ class AuthController extends Controller
             ],
         ]);
     }
-
+    
     public function logout(Request $request)
     {
         $token = $request->user()?->currentAccessToken();
-
+        
         if ($token instanceof PersonalAccessToken) {
             $token->delete();
         }
@@ -52,6 +52,22 @@ class AuthController extends Controller
         return response()->json([
             'status' => 'success',
             'message' => 'Logout sukses',
+        ]);
+    }
+    
+    public function me(Request $request) {
+        
+        $user = $request->user();
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Token Verified',
+            'data' => [
+                'id' => $user->getKey(),
+                'email' => $user->email,
+                'role' => $user->role,
+                'created_at' => optional($user->created_at)->toJSON(),
+                'updated_at' => optional($user->updated_at)->toJSON()
+            ],
         ]);
     }
 }
