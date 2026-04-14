@@ -54,4 +54,22 @@ class AuthController extends Controller
             'message' => 'Logout sukses',
         ]);
     }
+
+    public function me(Request $request)
+    {
+        $user = $request->user();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Profil pengguna berhasil diambil',
+            'data' => [
+                'id' => $user->getKey(),
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
+                'created_at' => optional($user->created_at)->toJSON(),
+                'updated_at' => optional($user->updated_at)->toJSON(),
+            ],
+        ]);
+    }
 }
