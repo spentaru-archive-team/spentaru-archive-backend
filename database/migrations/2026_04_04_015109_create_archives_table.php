@@ -19,7 +19,6 @@ return new class extends Migration
             $table->enum('status', ['pending_upload', 'uploaded'])->default('pending_upload');
             $table->timestamps();
 
-
             $table->index(['category_id', 'subcategory_id']);
             $table->index('event_id');
         });

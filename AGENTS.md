@@ -1,89 +1,118 @@
 # AGENTS.md
 
 > Project: backend Laravel 13 untuk sistem arsip sekolah.
-> Core constraints: API-first, response JSON konsisten, auth memakai Laravel Sanctum stateless dengan bearer token.
+> Prinsip: `AGENTS.md` ini peta singkat agar hemat token. Detail kontrak API ada di `docs/api.md`. Sumber kebenaran skema tetap migration dan kode aktif.
 
 ## Identity
 
 Agent bekerja sebagai backend engineer Laravel senior.
-Gunakan Bahasa Indonesia untuk penjelasan, ringkas, langsung, dan teknis.
+Gunakan Bahasa Indonesia: ringkas, langsung, teknis.
 
-## Toolchain
+## Starter
 
-| Aksi | Command | Catatan |
-|---|---|---|
-| Install deps | `composer install` | root repo adalah otoritas |
-| Jalankan app | `php artisan serve` | default local server |
-| Lihat route | `php artisan route:list` | pakai setelah ubah routing/middleware |
-| Test | `composer test` | menjalankan `php artisan test` |
-| Lint format | `./vendor/bin/pint` | format PHP |
-| Clear config | `php artisan config:clear` | jalankan setelah ubah config |
-| Seed | `php artisan db:seed` | data dummy |
+1. Cek apakah ada MCP server aktif yang relevan.
+2. Cek apakah ada skill yang relevan.
+3. Baca hanya file yang relevan dengan task. Jangan preload banyak file tanpa alasan.
 
-## Judgment Boundaries
+## Quick Commands
 
-**NEVER**
-- Commit secret, token, atau isi `.env`
-- Edit file di `vendor/` kecuali hanya untuk inspeksi referensi framework
-- Ubah mode auth menjadi stateful/cookie tanpa permintaan eksplisit
-- Tebak kontrak response API bila sudah ada pola di controller atau `bootstrap/app.php`
+| Aksi | Command |
+|---|---|
+| Install deps | `composer install` |
+| Jalankan app | `php artisan serve` |
+| Lihat route | `php artisan route:list` |
+| Test | `composer test` |
+| Format | `./vendor/bin/pint` |
+| Clear config | `php artisan config:clear` |
+| Seed | `php artisan db:seed` |
+
+## Ask / Never / Always
 
 **ASK**
-- Sebelum menjalankan `php artisan migrate:fresh`, `migrate:refresh`, atau operasi DB destruktif lain
-- Sebelum menghapus atau me-rename migration lama yang sudah mungkin dipakai database aktif
-- Sebelum menambah dependency Composer baru
-- Sebelum mengubah skema auth utama, misalnya struktur token, guard, atau flow login
+- Sebelum `php artisan migrate:fresh`, `migrate:refresh`, atau operasi DB destruktif lain.
+- Sebelum menghapus/rename migration lama.
+- Sebelum menambah dependency Composer baru.
+- Sebelum mengubah flow auth utama.
+
+**NEVER**
+- Commit secret, token, isi `.env`, dump Redis, atau file runtime sejenis.
+- Edit `vendor/` kecuali inspeksi referensi.
+- Ubah auth API menjadi stateful/cookie tanpa permintaan eksplisit.
+- Menebak kontrak response bila sudah ada pola aktif di controller atau `bootstrap/app.php`.
 
 **ALWAYS**
-- Setelah ubah route, cek dengan `php artisan route:list`
-- Setelah ubah file PHP, minimal cek syntax file yang diubah dengan `php -l`
-- Pertahankan response API berbentuk JSON yang konsisten: `status`, `message`, lalu opsional `data` atau `errors`
-- Untuk endpoint terproteksi, anggap auth yang dipakai adalah `Authorization: Bearer <token>`
-- Kalau request user ambigu, cari dulu sumber kebenaran di migration, model, route, dan controller sebelum mengubah code
+- Setelah ubah route atau middleware, jalankan `php artisan route:list`.
+- Setelah ubah file PHP, minimal jalankan `php -l <file>`.
+- Pertahankan response JSON: `status`, `message`, lalu opsional `data` / `errors`.
+- Untuk endpoint terproteksi, anggap auth memakai `Authorization: Bearer <token>`.
+- Jika request ambigu, cek migration, model, route, controller, dan docs sebelum mengubah code.
 
-## Project Conventions
+## Source Of Truth
 
-- Auth API saat ini berbasis Sanctum personal access token, bukan session/cookie.
-- Login mengembalikan token plain text Sanctum; frontend yang menambahkan prefix `Bearer`.
-- Error handling global API dipusatkan di `bootstrap/app.php`.
-- Gunakan Eloquent relationship yang eksplisit; utamakan `findOrFail()` atau `firstOrFail()` untuk resource tunggal.
-- Jika nama field request berbeda dari nama kolom auth, mapping manual di controller sebelum `Auth::attempt()`.
-- Jangan ulang aturan framework default di file ini; pakai konvensi Laravel kecuali repo ini menyimpang.
+Urutan cek:
+1. `database/migrations/` untuk schema, foreign key, unique, dan nullable.
+2. `routes/api.php` untuk route aktif dan middleware.
+3. `app/Http/Controllers/` untuk perilaku aktual endpoint.
+4. `app/Models/` untuk relasi dan fillable.
+5. `docs/api.md` untuk ringkasan kontrak API yang sudah diselaraskan dengan repo.
 
-## Context Map
+Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
+
+## Current Project State
+
+- Auth API memakai Laravel Sanctum personal access token stateless.
+- Token Sanctum disimpan di MySQL `personal_access_tokens`, bukan Redis.
+- Seluruh route `archives` saat ini diproteksi `auth:sanctum`.
+- Route `GET /api/v1/auth/me` sudah terdaftar, tetapi method `me()` belum ada di `AuthController`.
+- Upload file archive saat ini memakai `multipart/form-data`, file fisik ke disk `public`, metadata file ke tabel `archive_files`.
+- Redis boleh dipakai untuk cache/queue/lock, tetapi MySQL tetap source of truth domain.
+
+## Domain Map
 
 ```text
-app/Http/Controllers/
-  AuthController.php        login/logout API dan kontrak response auth
+archives
+  belongsTo event
+  belongsTo archive_categories
+  belongsTo subcategories
+  hasMany archive_files
+  hasOne archive_physical_locations
+  hasOne ocr_texts
 
-app/Models/
-  User.php                  model auth utama
-  Event.php
-  Archive.php
-  ArchiveCategory.php
-  ArchiveFile.php
-  PhysicalLocation.php
-
-bootstrap/app.php
-  registrasi routing API dan global exception rendering JSON
-
-routes/api.php
-  endpoint API versi `v1`
-
-database/migrations/
-  sumber kebenaran skema database
-
-database/factories/ + database/seeders/
-  data dummy dan bootstrap data lokal
+storage domain
+  cabinets
+  racks
+  archive_storage_rules
 ```
 
-## Output Style
+## Working Rules
 
-- Untuk perubahan kecil, jelaskan hasil akhir singkat dan sebut file yang diubah.
-- Untuk review, utamakan temuan, risiko, dan bug sebelum ringkasan.
-- Jika tidak sempat verifikasi sesuatu, katakan eksplisit.
+- Saat mengubah fitur archive, cek konsistensi model, migration, controller, route, seeder, dan storage file.
+- Untuk resource tunggal, utamakan `findOrFail()` atau `firstOrFail()`.
+- Gunakan relationship Eloquent yang eksplisit, bukan query lepas bila relasi sudah tersedia.
+- Jangan simpan file upload ke database; simpan file ke storage, metadata ke tabel relasi.
+- Jika menambah cache Redis, dokumentasikan key, TTL, dan titik invalidasinya secara singkat di kode atau docs terkait.
 
-## Maintenance Notes
+## File Map
 
-- Jaga file ini tetap pendek. Jika aturan mulai panjang, pindahkan detail ke dokumentasi repo lalu jadikan `AGENTS.md` sebagai peta.
-- Bila ada perubahan arsitektur besar, update file ini bersamaan dengan perubahan code agar agent session berikutnya tidak bekerja dari konteks basi.
+```text
+app/Http/Controllers/AuthController.php
+  login/logout auth API
+
+app/Http/Controllers/ArchiveController.php
+  CRUD archive + upload/update/delete file archive
+
+app/Http/Requests/StoreArchiveRequest.php
+  validasi create archive
+
+bootstrap/app.php
+  exception handling JSON global
+
+docs/api.md
+  ringkasan endpoint aktif dan contoh request/response
+```
+
+## Maintenance
+
+- Jaga file ini tetap pendek.
+- Pindahkan detail endpoint, payload, atau contoh panjang ke `docs/api.md`.
+- Jika ada perubahan arsitektur, auth, atau kontrak endpoint, update `AGENTS.md` dan `docs/api.md` di task yang sama.

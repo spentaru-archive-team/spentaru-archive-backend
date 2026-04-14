@@ -18,7 +18,6 @@ return new class extends Migration
             $table->text('notes')->nullable();
             $table->timestamps();
 
-
             $table->unique('archive_id');
             $table->unique(['rack_id', 'slot_number']);
             $table->index(['cabinet_id', 'rack_id']);

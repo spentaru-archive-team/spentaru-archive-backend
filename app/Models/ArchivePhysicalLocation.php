@@ -16,7 +16,7 @@ class ArchivePhysicalLocation extends Model
         'rack_id',
         'slot_number',
         'label_code',
-        'notes'
+        'notes',
     ];
 
     public function archive(): BelongsTo

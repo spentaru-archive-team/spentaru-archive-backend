@@ -12,7 +12,7 @@ class Rack extends Model
     protected $fillable = [
         'cabinet_id',
         'rack_number',
-        'capacity'
+        'capacity',
     ];
 
     protected function casts(): array

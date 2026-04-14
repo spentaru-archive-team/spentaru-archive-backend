@@ -17,7 +17,7 @@ return new class extends Migration
             $table->foreignId('category_id')->nullable()->constrained('archive_categories')->nullOnDelete();
             $table->foreignId('subcategory_id')->nullable()->constrained('subcategories')->nullOnDelete();
             $table->foreignId('cabinet_id')->constrained('cabinets')->cascadeOnDelete();
-            
+
             // semakin kecil angka priority semakin dibutuhkan
             $table->unsignedInteger('priority');
             $table->timestamps();
