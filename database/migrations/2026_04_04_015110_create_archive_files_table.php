@@ -12,11 +12,12 @@ return new class extends Migration
             $table->id();
             $table->foreignId('archive_id')->constrained('archives')->cascadeOnDelete();
             $table->string('file_name');
-            $table->string('file_path');
             $table->unsignedBigInteger('file_size');
-            $table->string('file_type', 100);
-            $table->string('file_url')->nullable();
+            $table->string('file_type', 20)->nullable();
+            $table->string('file_url');
             $table->timestamps();
+
+            $table->index('archive_id');
         });
     }
 

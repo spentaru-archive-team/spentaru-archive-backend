@@ -4,15 +4,16 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class ArchiveCategory extends Model
+class Subcategory extends Model
 {
     use HasFactory;
 
     protected $fillable = [
+        'category_id',
         'name',
-        'description',
     ];
 
     protected function casts(): array
@@ -23,13 +24,13 @@ class ArchiveCategory extends Model
         ];
     }
 
-    public function archives(): HasMany
+    public function category(): BelongsTo
     {
-        return $this->hasMany(Archive::class, 'category_id');
+        return $this->belongsTo(ArchiveCategory::class, 'category_id');
     }
 
-    public function subcategories(): HasMany
+    public function archives(): HasMany
     {
-        return $this->hasMany(Subcategory::class, 'category_id');
+        return $this->hasMany(Archive::class, 'subcategory_id');
     }
 }

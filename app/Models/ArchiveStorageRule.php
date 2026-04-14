@@ -6,33 +6,23 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 
-class Archive extends Model
+class ArchiveStorageRule extends Model
 {
     use HasFactory;
-
     protected $fillable = [
-        'event_id',
-        'title',
-        'year',
-        'notes',
         'category_id',
         'subcategory_id',
-        'status',
+        'cabinet_id',
+        'priority'
     ];
 
-    protected function casts(): array
+    protected function casts()
     {
         return [
             'created_at' => 'datetime',
-            'updated_at' => 'datetime',
+            'updated_at' => 'datetime'
         ];
-    }
-
-    public function event(): BelongsTo
-    {
-        return $this->belongsTo(Event::class);
     }
 
     public function category(): BelongsTo
@@ -45,18 +35,8 @@ class Archive extends Model
         return $this->belongsTo(Subcategory::class, 'subcategory_id');
     }
 
-    public function files(): HasMany
+    public function cabinet(): BelongsTo
     {
-        return $this->hasMany(ArchiveFile::class);
-    }
-
-    public function physicalLocation(): HasOne
-    {
-        return $this->hasOne(ArchivePhysicalLocation::class);
-    }
-
-    public function ocrText(): HasOne
-    {
-        return $this->hasOne(OcrText::class);
+        return $this->belongsTo(Cabinet::class, 'cabinet_id');
     }
 }
