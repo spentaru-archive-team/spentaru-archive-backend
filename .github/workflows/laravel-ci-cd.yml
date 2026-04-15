@@ -100,12 +100,6 @@ jobs:
       - name: Install PHP dependencies
         run: composer install --prefer-dist --no-interaction --no-progress
 
-      - name: setup Redis
-        uses: shogo82148/actions-setup-redis@v1.49.0
-        with:
-          redis-version: 7.2
-        
-
       - name: Prepare application environment
         run: |
           cp .env.example .env
