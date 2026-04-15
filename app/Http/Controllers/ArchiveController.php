@@ -3,8 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreArchiveRequest;
+use App\Http\Requests\UpdateArchiveRequest;
 use App\Models\Archive;
-use Illuminate\Http\Request;
+use App\Models\ArchivePhysicalLocation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -30,16 +31,33 @@ class ArchiveController extends Controller
      */
     public function store(StoreArchiveRequest $request)
     {
-        $req = $request->safe()->except('file');
+        $req_archive = $request->safe()->except(['file', 'cabinet_id', 'slot_number', 'rack_id', 'notes_physical_location']);
+        $req_physical_location = $request->safe()->only([
+            'cabinet_id',
+            'rack_id',
+            'slot_number',
+            'notes_physical_location',
+        ]);
         $file = $request->file('file');
         $timestamp = now()->format('YmdHisv');
         $random = Str::random(10);
         $filename = str(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME).' '.$random.' '.$timestamp)->slug('_').'.'.strtolower($file->getClientOriginalExtension());
         $path = $file->storeAs('uploads', $filename, 'public');
 
+        if (array_key_exists('notes_physical_location', $req_physical_location)) {
+            $req_physical_location['notes'] = $req_physical_location['notes_physical_location'];
+            unset($req_physical_location['notes_physical_location']);
+        }
+
+        // hitung label code
+        $label_code = ['label_code' => 'L'.$req_physical_location['cabinet_id'].'-R'.$req_physical_location['rack_id'].'-S'.$req_physical_location['slot_number']];
         try {
-            $archive = DB::transaction(function () use ($path, $filename, $file, $req) {
-                $archive = Archive::create($req + ['status' => 'uploaded']);
+            $archive = DB::transaction(function () use ($path, $filename, $file, $req_archive, $req_physical_location, $label_code) {
+                $archive = Archive::create($req_archive + ['status' => 'uploaded']);
+                $archive_id = $archive->getKey();
+                ArchivePhysicalLocation::create(
+                    $req_physical_location + $label_code + ['archive_id' => $archive_id]
+                );
 
                 $archive->files()->create([
                     'file_name' => $filename,
@@ -75,7 +93,6 @@ class ArchiveController extends Controller
             'files',
             'physicalLocation.cabinet',
             'physicalLocation.rack',
-            'ocrText',
         ])->findOrFail($id);
 
         return response()->json([
@@ -88,58 +105,91 @@ class ArchiveController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function update(UpdateArchiveRequest $request, string $id)
     {
-        $archive = Archive::with('files')->findOrFail($id);
-        $validated = $request->validate([
-            'title' => 'sometimes|required|string',
-            'year' => 'sometimes|required|integer',
-            'notes' => 'nullable|string',
-            'file' => 'sometimes|required|mimes:pdf,doc,docx,xls,xlsx|max:10240',
-            'event_id' => 'nullable|integer|min:0',
-            'category_id' => 'sometimes|required|integer|min:0',
-            'subcategory_id' => 'nullable|integer|min:0',
+        // ngeget archive dengan table files sama physicalLocation
+        $archive = Archive::with(['files', 'physicalLocation'])->findOrFail($id);
+
+        // ambil yang dibutuhin (soalnya setornya beda nanti)
+        $archiveData = $request->safe()->except([
+            'file',
+            'cabinet_id',
+            'rack_id',
+            'slot_number',
+            'notes_physical_location',
         ]);
-        $payload = collect($validated)->except('file')->all();
 
-        if (! $request->hasFile('file')) {
-            $archive->update($payload);
+        $physicalLocationData = $request->safe()->only([
+            'cabinet_id',
+            'rack_id',
+            'slot_number',
+            'notes_physical_location',
+        ]);
 
-            return response()->json([
-                'status' => 'success',
-                'message' => 'sukses memperbarui archive',
-                'data' => $archive->fresh(['event', 'category', 'subcategory', 'files', 'physicalLocation.cabinet', 'physicalLocation.rack', 'ocrText']),
-            ]);
+        if (array_key_exists('notes_physical_location', $physicalLocationData)) {
+            $physicalLocationData['notes'] = $physicalLocationData['notes_physical_location'];
+            unset($physicalLocationData['notes_physical_location']);
         }
 
-        $file = $request->file('file');
-        $timestamp = now()->format('YmdHisv');
-        $random = Str::random(10);
-        $filename = str(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME).' '.$random.' '.$timestamp)->slug('_').'.'.strtolower($file->getClientOriginalExtension());
-        $path = $file->storeAs('uploads', $filename, 'public');
+        $existingPhysicalLocation = $archive->physicalLocation;
+        $labelParts = [
+            'cabinet_id' => $physicalLocationData['cabinet_id'] ?? $existingPhysicalLocation?->cabinet_id, // buat ngecek null apa nggaknya (kalau null dijadiin default dari database)  trus dijadiin label code terbaru
+            'rack_id' => $physicalLocationData['rack_id'] ?? $existingPhysicalLocation?->rack_id,
+            'slot_number' => $physicalLocationData['slot_number'] ?? $existingPhysicalLocation?->slot_number,
+        ];
+        if ($labelParts['cabinet_id'] && $labelParts['rack_id'] && $labelParts['slot_number']) {
+            $physicalLocationData['label_code'] = 'L'.$labelParts['cabinet_id'].'-R'.$labelParts['rack_id'].'-S'.$labelParts['slot_number'];
+        }
+
+        $path = null;
+        $filename = null;
+        $file = null;
         $previousPaths = $archive->files->pluck('file_url')->filter()->all();
+        if ($request->hasFile('file')) {
+            $file = $request->file('file');
+            $timestamp = now()->format('YmdHisv');
+            $random = Str::random(10);
+            $filename = str(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME).' '.$random.' '.$timestamp)->slug('_').'.'.strtolower($file->getClientOriginalExtension());
+            $path = $file->storeAs('uploads', $filename, 'public');
+            $archiveData['status'] = 'uploaded';
+        }
 
         try {
-            DB::transaction(function () use ($archive, $payload, $file, $filename, $path) {
-                $archive->update($payload + ['status' => 'uploaded']);
+            DB::transaction(function () use ($archive, $archiveData, $physicalLocationData, $file, $filename, $path) {
+                if ($archiveData !== []) {
+                    $archive->update($archiveData);
+                }
 
-                $archive->files()->updateOrCreate(
-                    ['archive_id' => $archive->id],
-                    [
-                        'file_name' => $filename,
-                        'file_size' => $file->getSize(),
-                        'file_type' => strtolower($file->getClientOriginalExtension()),
-                        'file_url' => $path,
-                    ]
-                );
+                if ($physicalLocationData !== []) {
+                    $archive->physicalLocation()->updateOrCreate(
+                        ['archive_id' => $archive->id],
+                        $physicalLocationData
+                    );
+                }
+
+                if ($file && $filename && $path) {
+                    $archive->files()->updateOrCreate(
+                        ['archive_id' => $archive->id],
+                        [
+                            'file_name' => $filename,
+                            'file_size' => $file->getSize(),
+                            'file_type' => strtolower($file->getClientOriginalExtension()),
+                            'file_url' => $path,
+                        ]
+                    );
+                }
             });
         } catch (\Throwable $th) {
-            Storage::disk('public')->delete($path);
+            if ($path) {
+                Storage::disk('public')->delete($path);
+            }
 
             throw $th;
         }
 
-        Storage::disk('public')->delete($previousPaths);
+        if ($path) {
+            Storage::disk('public')->delete($previousPaths);
+        }
 
         return response()->json([
             'status' => 'success',

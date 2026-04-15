@@ -175,7 +175,6 @@ Deskripsi:
   - `files`
   - `physicalLocation.cabinet`
   - `physicalLocation.rack`
-  - `ocrText`
 
 ## 6. Create Archive
 
@@ -204,10 +203,15 @@ Body:
 | `event_id` | `integer` | Tidak | nullable, min `0` |
 | `category_id` | `integer` | Ya | min `0` |
 | `subcategory_id` | `integer` | Tidak | nullable, min `0` |
+| `cabinet_id` | `integer` | Ya | min `0` |
+| `rack_id` | `integer` | Ya | min `0` |
+| `slot_number` | `integer` | Ya | min `1` |
+| `notes_physical_location` | `string` | Tidak | nullable |
 
 Deskripsi implementasi saat ini:
 - File disimpan ke disk `public` pada path relatif `uploads/<nama_file_sanitized>`.
 - Row `archives` dibuat dengan status `uploaded`.
+- Row `archive_physical_locations` dibuat untuk menyimpan lokasi fisik archive.
 - Metadata file disimpan melalui relasi `archive_files`.
 
 Contoh response sukses:
@@ -253,13 +257,19 @@ Body:
 Aturan validasi saat ini:
 - `title`: `sometimes|required|string`
 - `year`: `sometimes|required|integer`
-- `notes`: `nullable|string`
-- `file`: `sometimes|required|mimes:pdf,doc,docx,xls,xlsx|max:10240`
-- `event_id`: `nullable|integer|min:0`
+- `notes`: `sometimes|nullable|string`
+- `file`: `sometimes|required|file|mimes:pdf,doc,docx,xls,xlsx|max:10240`
+- `event_id`: `sometimes|nullable|integer|min:0`
 - `category_id`: `sometimes|required|integer|min:0`
-- `subcategory_id`: `nullable|integer|min:0`
+- `subcategory_id`: `sometimes|nullable|integer|min:0`
+- `cabinet_id`: `sometimes|required|integer|min:0`
+- `rack_id`: `sometimes|required|integer|min:0`
+- `slot_number`: `sometimes|required|integer|min:1`
+- `notes_physical_location`: `sometimes|nullable|string`
 
 Catatan implementasi:
+- Field lokasi fisik diupdate lewat relasi `physicalLocation`.
+- `label_code` lokasi fisik dihitung ulang dari kombinasi `cabinet_id`, `rack_id`, dan `slot_number`.
 - Bila file baru dikirim, file lama dihapus dari storage setelah update berhasil.
 - Metadata file diperbarui lewat `updateOrCreate()` pada relasi `files`.
 
@@ -317,6 +327,10 @@ curl -X POST http://127.0.0.1:8000/api/v1/archives \
   -F "category_id=2" \
   -F "subcategory_id=3" \
   -F "event_id=1" \
+  -F "cabinet_id=1" \
+  -F "rack_id=2" \
+  -F "slot_number=3" \
+  -F "notes_physical_location=Rak arsip rapat" \
   -F "file=@/path/ke/file/contoh.pdf"
 ```
 

@@ -63,7 +63,7 @@ Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
 - Auth API memakai Laravel Sanctum personal access token stateless.
 - Token Sanctum disimpan di MySQL `personal_access_tokens`, bukan Redis.
 - Seluruh route `archives` saat ini diproteksi `auth:sanctum`.
-- Route `GET /api/v1/auth/me` sudah terdaftar, tetapi method `me()` belum ada di `AuthController`.
+- Route `GET /api/v1/auth/me` aktif dan ditangani `AuthController::me()`.
 - Upload file archive saat ini memakai `multipart/form-data`, file fisik ke disk `public`, metadata file ke tabel `archive_files`.
 - Redis boleh dipakai untuk cache/queue/lock, tetapi MySQL tetap source of truth domain.
 
