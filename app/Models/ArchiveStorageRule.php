@@ -17,7 +17,7 @@ class ArchiveStorageRule extends Model
         'priority',
     ];
 
-    protected function casts()
+    protected function casts(): array
     {
         return [
             'created_at' => 'datetime',

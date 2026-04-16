@@ -14,6 +14,7 @@ return new class extends Migration
             $table->string('username', 120)->unique();
             $table->string('password');
             $table->enum('role', ['admin', 'guru']);
+            $table->dateTime('last_login_at')->nullable();
             $table->timestamps();
         });
     }

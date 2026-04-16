@@ -100,12 +100,16 @@ app/Http/Controllers/AuthController.php
 
 app/Http/Controllers/ArchiveController.php
   CRUD archive + upload/update/delete file archive
+  auto-assign physical location via ArchiveStorageService
 
 app/Http/Requests/StoreArchiveRequest.php
   validasi create archive
 
+app/Services/ArchiveStorageService.php
+  auto-assign slot & generate label_code (L1-R1-S01)
+
 bootstrap/app.php
-  exception handling JSON global
+  exception handling JSON global + auth 401 handling
 
 docs/api.md
   ringkasan endpoint aktif dan contoh request/response

@@ -4,8 +4,9 @@ namespace App\Http\Requests;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rules\Password;
 
-class StoreArchiveRequest extends FormRequest
+class UpdateResetPasswordRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -23,13 +24,7 @@ class StoreArchiveRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'title' => 'required|string',
-            'year' => 'required|integer',
-            'notes' => 'nullable|string',
-            'file' => 'required|file|mimes:pdf,doc,docx,xls,xlsx|max:10240',
-            'event_id' => 'nullable|integer|min:0|exists:events,id',
-            'category_id' => 'required|integer|min:0|exists:archive_categories,id',
-            'subcategory_id' => 'nullable|integer|min:0|exists:subcategories,id',
+            'password' => ['string','min:8', 'nullable', Password::min(8)->letters()->numbers()->mixedCase()]
         ];
     }
 }

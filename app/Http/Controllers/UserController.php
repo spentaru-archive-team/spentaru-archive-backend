@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreUserRequest;
+use App\Http\Requests\UpdateResetPasswordRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Models\User;
 
@@ -83,7 +84,25 @@ class UserController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => 'sukses menghapus user ' . $username,
+            'message' => 'sukses menghapus user '.$username,
         ]);
+    }
+
+    public function reset_password(UpdateResetPasswordRequest $request, string $id)
+    {
+        $user = User::findOrFail($id);
+        $username = $user->username;
+
+        if ($request->filled('password')) {
+            $hashed_password = bcrypt($request->password);
+            $user->update($request->safe()->except('password') + ['password' => $hashed_password]);
+        } else {
+            $user->update($request->safe()->except('password'));
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Sukses mengubah password ' . $username
+        ], 200);
     }
 }

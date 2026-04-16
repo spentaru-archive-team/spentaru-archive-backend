@@ -5,13 +5,41 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreArchiveRequest;
 use App\Http\Requests\UpdateArchiveRequest;
 use App\Models\Archive;
-use App\Models\ArchivePhysicalLocation;
+use App\Services\ArchiveStorageService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class ArchiveController extends Controller
 {
+    public function __construct(
+        private ArchiveStorageService $storageService
+    ) {}
+
+    private function hasSameValue(mixed $current, mixed $incoming): bool
+    {
+        if ($current === null || $incoming === null) {
+            return $current === $incoming;
+        }
+
+        if (is_int($current) || is_float($current) || is_int($incoming) || is_float($incoming)) {
+            return (string) $current === (string) $incoming;
+        }
+
+        return $current === $incoming;
+    }
+
+    private function storagePathFromUrl(?string $fileUrl): ?string
+    {
+        if (! $fileUrl) {
+            return null;
+        }
+
+        return Str::startsWith($fileUrl, '/storage/')
+            ? Str::after($fileUrl, '/storage/')
+            : ltrim($fileUrl, '/');
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -38,42 +66,30 @@ class ArchiveController extends Controller
      */
     public function store(StoreArchiveRequest $request)
     {
-        $req_archive = $request->safe()->except(['file', 'cabinet_id', 'slot_number', 'rack_id', 'notes_physical_location']);
-        $req_physical_location = $request->safe()->only([
-            'cabinet_id',
-            'rack_id',
-            'slot_number',
-            'notes_physical_location',
-        ]);
+        $req_archive = $request->safe()->except(['file']);
         $file = $request->file('file');
         $timestamp = now()->format('YmdHisv');
         $random = Str::random(10);
         $filename = str(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME).' '.$random.' '.$timestamp)->slug('_').'.'.strtolower($file->getClientOriginalExtension());
         $path = $file->storeAs('uploads', $filename, 'public');
-
-        if (array_key_exists('notes_physical_location', $req_physical_location)) {
-            $req_physical_location['notes'] = $req_physical_location['notes_physical_location'];
-            unset($req_physical_location['notes_physical_location']);
-        }
-
-        // hitung label code
-        $label_code = ['label_code' => 'L'.$req_physical_location['cabinet_id'].'-R'.$req_physical_location['rack_id'].'-S'.$req_physical_location['slot_number']];
         try {
-            $archive = DB::transaction(function () use ($path, $filename, $file, $req_archive, $req_physical_location, $label_code) {
+            $archive = DB::transaction(function () use ($path, $filename, $file, $req_archive) {
                 $archive = Archive::create($req_archive + ['status' => 'uploaded']);
-                $archive_id = $archive->getKey();
-                ArchivePhysicalLocation::create(
-                    $req_physical_location + $label_code + ['archive_id' => $archive_id]
-                );
 
                 $archive->files()->create([
                     'file_name' => $filename,
                     'file_size' => $file->getSize(),
                     'file_type' => strtolower($file->getClientOriginalExtension()),
-                    'file_url' => "/storage/" . $path,
+                    'file_url' => '/storage/'.$path,
                 ]);
 
-                return $archive->load('files');
+                $this->storageService->assignLocation(
+                    $archive,
+                    $req_archive['category_id'],
+                    $req_archive['subcategory_id'] ?? null
+                );
+
+                return $archive->load(['files', 'physicalLocation.cabinet', 'physicalLocation.rack']);
             });
         } catch (\Throwable $th) {
             Storage::disk('public')->delete($path);
@@ -114,87 +130,66 @@ class ArchiveController extends Controller
      */
     public function update(UpdateArchiveRequest $request, string $id)
     {
-        // ngeget archive dengan table files sama physicalLocation
         $archive = Archive::with(['files', 'physicalLocation'])->findOrFail($id);
+        $validated = $request->safe()->all();
 
-        // ambil yang dibutuhin (soalnya setornya beda nanti)
-        $archiveData = $request->safe()->except([
-            'file',
-            'cabinet_id',
-            'rack_id',
-            'slot_number',
-            'notes_physical_location',
-        ]);
-
-        $physicalLocationData = $request->safe()->only([
-            'cabinet_id',
-            'rack_id',
-            'slot_number',
-            'notes_physical_location',
-        ]);
-
-        if (array_key_exists('notes_physical_location', $physicalLocationData)) {
-            $physicalLocationData['notes'] = $physicalLocationData['notes_physical_location'];
-            unset($physicalLocationData['notes_physical_location']);
-        }
-
-        $existingPhysicalLocation = $archive->physicalLocation;
-        $labelParts = [
-            'cabinet_id' => $physicalLocationData['cabinet_id'] ?? $existingPhysicalLocation?->cabinet_id, // buat ngecek null apa nggaknya (kalau null dijadiin default dari database)  trus dijadiin label code terbaru
-            'rack_id' => $physicalLocationData['rack_id'] ?? $existingPhysicalLocation?->rack_id,
-            'slot_number' => $physicalLocationData['slot_number'] ?? $existingPhysicalLocation?->slot_number,
-        ];
-        if ($labelParts['cabinet_id'] && $labelParts['rack_id'] && $labelParts['slot_number']) {
-            $physicalLocationData['label_code'] = 'L'.$labelParts['cabinet_id'].'-R'.$labelParts['rack_id'].'-S'.$labelParts['slot_number'];
+        $archiveInput = collect($validated)->except(['file'])->all();
+        $archiveData = [];
+        foreach ($archiveInput as $key => $value) {
+            if (! $this->hasSameValue($archive->{$key}, $value)) {
+                $archiveData[$key] = $value;
+            }
         }
 
         $path = null;
         $filename = null;
         $file = null;
-        $previousPaths = $archive->files->pluck('file_url')->filter()->all();
+        $previousPaths = collect([$archive->files])
+            ->filter()
+            ->pluck('file_url')
+            ->map(fn (?string $fileUrl) => $this->storagePathFromUrl($fileUrl))
+            ->filter()
+            ->values()
+            ->all();
+
         if ($request->hasFile('file')) {
             $file = $request->file('file');
             $timestamp = now()->format('YmdHisv');
             $random = Str::random(10);
             $filename = str(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME).' '.$random.' '.$timestamp)->slug('_').'.'.strtolower($file->getClientOriginalExtension());
-            $path = '/storage/' . $file->storeAs('uploads', $filename, 'public');
-            $archiveData['status'] = 'uploaded';
+            $storedPath = $file->storeAs('uploads', $filename, 'public');
+            $path = '/storage/'.$storedPath;
+
+            if (! $this->hasSameValue($archive->status, 'uploaded')) {
+                $archiveData['status'] = 'uploaded';
+            }
         }
 
         try {
-            DB::transaction(function () use ($archive, $archiveData, $physicalLocationData, $file, $filename, $path) {
+            DB::transaction(function () use ($archive, $archiveData, $file, $filename, $path) {
                 if ($archiveData !== []) {
                     $archive->update($archiveData);
                 }
 
-                if ($physicalLocationData !== []) {
-                    $archive->physicalLocation()->updateOrCreate(
-                        ['archive_id' => $archive->id],
-                        $physicalLocationData
-                    );
-                }
-
                 if ($file && $filename && $path) {
-                    $archive->files()->updateOrCreate(
-                        ['archive_id' => $archive->id],
-                        [
-                            'file_name' => $filename,
-                            'file_size' => $file->getSize(),
-                            'file_type' => strtolower($file->getClientOriginalExtension()),
-                            'file_url' => $path,
-                        ]
-                    );
+                    $archive->files()->delete();
+                    $archive->files()->create([
+                        'file_name' => $filename,
+                        'file_size' => $file->getSize(),
+                        'file_type' => strtolower($file->getClientOriginalExtension()),
+                        'file_url' => $path,
+                    ]);
                 }
             });
         } catch (\Throwable $th) {
             if ($path) {
-                Storage::disk('public')->delete($path);
+                Storage::disk('public')->delete($this->storagePathFromUrl($path));
             }
 
             throw $th;
         }
 
-        if ($path) {
+        if ($file && $previousPaths !== []) {
             Storage::disk('public')->delete($previousPaths);
         }
 

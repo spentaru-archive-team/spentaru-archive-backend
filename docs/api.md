@@ -31,14 +31,14 @@ Body:
 
 | Key | Tipe | Wajib | Aturan |
 |---|---|---|---|
-| `email` | `string` | Ya | email valid, max `120` karakter |
+| `username` | `string` | Ya | username user |
 | `password` | `string` | Ya | tidak boleh kosong |
 
 Contoh request:
 
 ```json
 {
-  "email": "esmeralda76@example.net",
+  "username": "admin",
   "password": "password"
 }
 ```
@@ -51,7 +51,7 @@ Contoh response sukses:
   "message": "Login successful",
   "data": {
     "id": 1,
-    "email": "esmeralda76@example.net",
+    "username": "admin",
     "role": "admin",
     "created_at": "2026-04-11T16:50:44.000000Z",
     "updated_at": "2026-04-11T16:50:44.000000Z",
@@ -203,16 +203,15 @@ Body:
 | `event_id` | `integer` | Tidak | nullable, min `0` |
 | `category_id` | `integer` | Ya | min `0` |
 | `subcategory_id` | `integer` | Tidak | nullable, min `0` |
-| `cabinet_id` | `integer` | Ya | min `0` |
-| `rack_id` | `integer` | Ya | min `0` |
-| `slot_number` | `integer` | Ya | min `1` |
-| `notes_physical_location` | `string` | Tidak | nullable |
 
 Deskripsi implementasi saat ini:
 - File disimpan ke disk `public` pada path relatif `uploads/<nama_file_sanitized>`.
 - Row `archives` dibuat dengan status `uploaded`.
-- Row `archive_physical_locations` dibuat untuk menyimpan lokasi fisik archive.
 - Metadata file disimpan melalui relasi `archive_files`.
+- **Physical location auto-assigned** berdasarkan `category_id` melalui `ArchiveStorageService`:
+  - Cek `archive_storage_rules` untuk kategori
+  - Cari rack dengan slot available
+  - Generate `label_code` format: `L{cabinet_id}-R{rack_number}-S{slot}`
 
 Contoh response sukses:
 
@@ -224,13 +223,17 @@ Contoh response sukses:
     "id": 1,
     "title": "Arsip Rapat",
     "status": "uploaded",
-    "files": [
-      {
-        "file_name": "arsip_rapat_xxx_20260414120000000.pdf",
-        "file_type": "pdf",
-        "file_url": "uploads/arsip_rapat_xxx_20260414120000000.pdf"
-      }
-    ]
+    "files": {
+      "file_name": "arsip_rapat_xxx_20260414120000000.pdf",
+      "file_type": "pdf",
+      "file_url": "/storage/uploads/arsip_rapat_xxx_20260414120000000.pdf"
+    },
+    "physical_location": {
+      "cabinet_id": 1,
+      "rack_id": 1,
+      "slot_number": 1,
+      "label_code": "L1-R1-S01"
+    }
   }
 }
 ```
@@ -258,22 +261,76 @@ Aturan validasi saat ini:
 - `title`: `sometimes|required|string`
 - `year`: `sometimes|required|integer`
 - `notes`: `sometimes|nullable|string`
-- `file`: `sometimes|required|file|mimes:pdf,doc,docx,xls,xlsx|max:10240`
+- `file`: `nullable|file|mimes:pdf,doc,docx,xls,xlsx|max:10240`
 - `event_id`: `sometimes|nullable|integer|min:0`
 - `category_id`: `sometimes|required|integer|min:0`
 - `subcategory_id`: `sometimes|nullable|integer|min:0`
-- `cabinet_id`: `sometimes|required|integer|min:0`
-- `rack_id`: `sometimes|required|integer|min:0`
+
+Catatan implementasi:
+- Bila file baru dikirim, file lama dihapus dari storage setelah update berhasil.
+- Metadata file diperbarui lewat `updateOrCreate()` pada relasi `files`.
+
+## 8. Show Archive Physical Location
+
+Endpoint:
+
+```http
+GET /api/v1/archives/{id}/physical-location
+```
+
+Header:
+
+```http
+Accept: application/json
+Authorization: Bearer <token>
+```
+
+## 9. Create Archive Physical Location
+
+Endpoint:
+
+```http
+POST /api/v1/archives/{id}/physical-location
+```
+
+Body:
+- `cabinet_id`: `required|integer|min:0|exists:cabinets,id`
+- `rack_id`: `required|integer|min:0|exists:racks,id`
+- `slot_number`: `required|integer|min:1`
+- `notes_physical_location`: `nullable|string`
+
+Catatan implementasi:
+- Physical location hanya boleh dibuat satu kali per archive.
+- `label_code` dihitung otomatis dari kombinasi `cabinet_id`, `rack_id`, dan `slot_number`.
+
+## 10. Update Archive Physical Location
+
+Endpoint:
+
+```http
+PUT /api/v1/archives/{id}/physical-location
+```
+
+Body:
+- `cabinet_id`: `sometimes|required|integer|min:0|exists:cabinets,id`
+- `rack_id`: `sometimes|required|integer|min:0|exists:racks,id`
 - `slot_number`: `sometimes|required|integer|min:1`
 - `notes_physical_location`: `sometimes|nullable|string`
 
 Catatan implementasi:
-- Field lokasi fisik diupdate lewat relasi `physicalLocation`.
-- `label_code` lokasi fisik dihitung ulang dari kombinasi `cabinet_id`, `rack_id`, dan `slot_number`.
-- Bila file baru dikirim, file lama dihapus dari storage setelah update berhasil.
-- Metadata file diperbarui lewat `updateOrCreate()` pada relasi `files`.
+- Mendukung partial update.
+- Jika nilai sama dengan database, field tidak diubah.
+- `label_code` dihitung ulang otomatis dari kombinasi akhir `cabinet_id`, `rack_id`, dan `slot_number`.
 
-## 8. Delete Archive
+## 11. Delete Archive Physical Location
+
+Endpoint:
+
+```http
+DELETE /api/v1/archives/{id}/physical-location
+```
+
+## 12. Delete Archive
 
 Endpoint:
 
@@ -310,7 +367,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/auth/login \
   -H "Accept: application/json" \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "esmeralda76@example.net",
+    "username": "admin",
     "password": "password"
   }'
 ```
@@ -327,11 +384,22 @@ curl -X POST http://127.0.0.1:8000/api/v1/archives \
   -F "category_id=2" \
   -F "subcategory_id=3" \
   -F "event_id=1" \
-  -F "cabinet_id=1" \
-  -F "rack_id=2" \
-  -F "slot_number=3" \
-  -F "notes_physical_location=Rak arsip rapat" \
   -F "file=@/path/ke/file/contoh.pdf"
+```
+
+Create archive physical location:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/archives/1/physical-location \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cabinet_id": 1,
+    "rack_id": 2,
+    "slot_number": 3,
+    "notes_physical_location": "Rak arsip rapat"
+  }'
 ```
 
 Detail archive:
