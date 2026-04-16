@@ -62,9 +62,13 @@ Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
 
 - Auth API memakai Laravel Sanctum personal access token stateless.
 - Token Sanctum disimpan di MySQL `personal_access_tokens`, bukan Redis.
-- Seluruh route `archives` saat ini diproteksi `auth:sanctum`.
-- Route `GET /api/v1/auth/me` aktif dan ditangani `AuthController::me()`.
-- Upload file archive saat ini memakai `multipart/form-data`, file fisik ke disk `public`, metadata file ke tabel `archive_files`.
+- User roles: `admin` dan `guru`.
+- Role-based access control:
+  - `admin` bisa CRUD semua master data (events, categories, subcategories, cabinets, racks, users)
+  - `guru` hanya bisa READ master data + full CRUD archives + self-update profile
+  - Semua user bisa akses archives dan update profil sendiri via `/users/me`
+- Upload file archive memakai `multipart/form-data`, file fisik ke disk `public`, metadata ke tabel `archive_files`.
+- Archive auto-assign physical location via `ArchiveStorageService`.
 - Redis boleh dipakai untuk cache/queue/lock, tetapi MySQL tetap source of truth domain.
 
 ## Domain Map
@@ -102,8 +106,29 @@ app/Http/Controllers/ArchiveController.php
   CRUD archive + upload/update/delete file archive
   auto-assign physical location via ArchiveStorageService
 
+app/Http/Controllers/EventController.php
+  CRUD event (admin-only write)
+
+app/Http/Controllers/CategoryController.php
+  CRUD category (admin-only write)
+
+app/Http/Controllers/SubcategoryController.php
+  CRUD subcategory (admin-only write)
+
+app/Http/Controllers/CabinetController.php
+  CRUD cabinet (admin-only write)
+
+app/Http/Controllers/RackController.php
+  CRUD rack (admin-only write)
+
+app/Http/Controllers/UserController.php
+  CRUD user (admin-only) + self-update profile
+
 app/Http/Requests/StoreArchiveRequest.php
   validasi create archive
+
+app/Http/Requests/UpdateProfileRequest.php
+  validasi self-update profile
 
 app/Services/ArchiveStorageService.php
   auto-assign slot & generate label_code (L1-R1-S01)

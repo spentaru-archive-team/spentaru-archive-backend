@@ -8,9 +8,12 @@ http://127.0.0.1:8000/api/v1
 
 Konvensi umum:
 - Response API mengikuti pola `status`, `message`, lalu opsional `data`.
-- Seluruh endpoint `archives` saat ini diproteksi `auth:sanctum`.
 - Auth API memakai bearer token Sanctum stateless.
 - Upload file arsip memakai `multipart/form-data`.
+
+Role-based access:
+- **Admin** (`admin`): full access ke semua endpoint.
+- **Guru** (`guru`): READ master data + CRUD archives + self-update profile via `/users/me`.
 
 ## 1. Login
 
@@ -355,6 +358,131 @@ Contoh response sukses:
 {
   "status": "success",
   "message": "sukses menghapus archive"
+}
+```
+
+## 13. Events
+
+CRUD untuk event. **Admin-only untuk write operations.**
+
+| Method | Endpoint | Auth | Keterangan |
+|--------|----------|------|------------|
+| GET | `/events` | sanctum | List semua event (paginated) |
+| GET | `/events/{id}` | sanctum | Detail event + relasi user & archives |
+| POST | `/events` | sanctum+admin | Buat event baru |
+| PUT | `/events/{id}` | sanctum+admin | Update event |
+| DELETE | `/events/{id}` | sanctum+admin | Hapus event (gagal kalau ada archives) |
+
+Body (POST/PUT):
+- `title`: required|string
+- `description`: nullable|string
+- `date`: required|date
+- `status`: required|in:ongoing,done
+
+## 14. Categories
+
+CRUD untuk kategori arsip. **Admin-only untuk write operations.**
+
+| Method | Endpoint | Auth | Keterangan |
+|--------|----------|------|------------|
+| GET | `/categories` | sanctum | List semua kategori + subcategories |
+| GET | `/categories/{id}` | sanctum | Detail kategori + relasi |
+| POST | `/categories` | sanctum+admin | Buat kategori baru |
+| PUT | `/categories/{id}` | sanctum+admin | Update kategori |
+| DELETE | `/categories/{id}` | sanctum+admin | Hapus (cascade subcategories, gagal kalau ada archives) |
+
+Body (POST/PUT):
+- `name`: required|string|unique
+- `description`: nullable|string
+
+## 15. Subcategories
+
+CRUD untuk subkategori. **Admin-only untuk write operations.**
+
+| Method | Endpoint | Auth | Keterangan |
+|--------|----------|------|------------|
+| GET | `/subcategories` | sanctum | List subkategori |
+| GET | `/subcategories?category_id=X` | sanctum | Filter by kategori |
+| GET | `/subcategories/{id}` | sanctum | Detail subkategori |
+| POST | `/subcategories` | sanctum+admin | Buat subkategori |
+| PUT | `/subcategories/{id}` | sanctum+admin | Update subkategori |
+| DELETE | `/subcategories/{id}` | sanctum+admin | Hapus (gagal kalau ada archives) |
+
+Body (POST/PUT):
+- `category_id`: required|exists:archive_categories
+- `name`: required|string
+
+## 16. Cabinets
+
+CRUD untuk lemari. **Admin-only untuk write operations.**
+
+| Method | Endpoint | Auth | Keterangan |
+|--------|----------|------|------------|
+| GET | `/cabinets` | sanctum | List lemari + racks |
+| GET | `/cabinets/{id}` | sanctum | Detail lemari + racks |
+| POST | `/cabinets` | sanctum+admin | Buat lemari |
+| PUT | `/cabinets/{id}` | sanctum+admin | Update lemari |
+| DELETE | `/cabinets/{id}` | sanctum+admin | Hapus + cascade racks (gagal kalau ada archives di rack) |
+
+Body (POST/PUT):
+- `name`: required|string|unique
+
+## 17. Racks
+
+CRUD untuk rak. **Admin-only untuk write operations.**
+
+| Method | Endpoint | Auth | Keterangan |
+|--------|----------|------|------------|
+| GET | `/racks` | sanctum | List rak + cabinet |
+| GET | `/racks?cabinet_id=X` | sanctum | Filter by lemari |
+| GET | `/racks/{id}` | sanctum | Detail rak + physical locations |
+| POST | `/racks` | sanctum+admin | Buat rak |
+| PUT | `/racks/{id}` | sanctum+admin | Update rak |
+| DELETE | `/racks/{id}` | sanctum+admin | Hapus (gagal kalau ada archives) |
+
+Body (POST/PUT):
+- `cabinet_id`: required|exists:cabinets
+- `rack_number`: required|integer|min:1
+- `capacity`: required|integer|min:1|max:100
+
+## 18. Users - Self Update Profile
+
+Endpoint untuk user update profil sendiri.
+
+```http
+PUT /api/v1/users/me
+```
+
+Header:
+
+```http
+Accept: application/json
+Authorization: Bearer <token>
+```
+
+Body:
+- `name`: sometimes|string
+- `username`: sometimes|string|unique:users,username
+- `password`: sometimes|string|min:8|letters|numbers|mixedCase
+
+Catatan:
+- User tidak bisa mengubah `role` sendiri.
+- Validasi unique username mengabaikan user sendiri.
+
+Contoh response sukses:
+
+```json
+{
+  "status": "success",
+  "message": "sukses mengupdate profil",
+  "data": {
+    "id": 2,
+    "name": "Guru User",
+    "username": "guru_updated",
+    "role": "guru",
+    "created_at": "2026-04-16T21:53:38.000000Z",
+    "updated_at": "2026-04-16T22:03:21.000000Z"
+  }
 }
 ```
 

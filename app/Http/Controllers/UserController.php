@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreUserRequest;
+use App\Http\Requests\UpdateProfileRequest;
 use App\Http\Requests\UpdateResetPasswordRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Models\User;
@@ -102,7 +103,25 @@ class UserController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Sukses mengubah password ' . $username
+            'message' => 'Sukses mengubah password '.$username,
         ], 200);
+    }
+
+    public function updateMe(UpdateProfileRequest $request)
+    {
+        $user = $request->user();
+        $validated = $request->validated();
+
+        if (isset($validated['password'])) {
+            $validated['password'] = bcrypt($validated['password']);
+        }
+
+        $user->update($validated);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'sukses mengupdate profil',
+            'data' => $user->fresh(),
+        ]);
     }
 }
