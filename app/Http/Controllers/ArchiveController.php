@@ -17,7 +17,14 @@ class ArchiveController extends Controller
      */
     public function index()
     {
-        $page = Archive::selectRaw('ROW_NUMBER() OVER (ORDER BY id) AS row_num, archives.*')->paginate(10);
+        $page = Archive::with([
+            'event',
+            'category',
+            'subcategory',
+            'files',
+            'physicalLocation.cabinet',
+            'physicalLocation.rack',
+        ])->selectRaw('ROW_NUMBER() OVER (ORDER BY id) AS row_num, archives.*')->paginate(10);
 
         return response()->json([
             'status' => 'success',
@@ -63,7 +70,7 @@ class ArchiveController extends Controller
                     'file_name' => $filename,
                     'file_size' => $file->getSize(),
                     'file_type' => strtolower($file->getClientOriginalExtension()),
-                    'file_url' => $path,
+                    'file_url' => "/storage/" . $path,
                 ]);
 
                 return $archive->load('files');
@@ -150,7 +157,7 @@ class ArchiveController extends Controller
             $timestamp = now()->format('YmdHisv');
             $random = Str::random(10);
             $filename = str(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME).' '.$random.' '.$timestamp)->slug('_').'.'.strtolower($file->getClientOriginalExtension());
-            $path = $file->storeAs('uploads', $filename, 'public');
+            $path = '/storage/' . $file->storeAs('uploads', $filename, 'public');
             $archiveData['status'] = 'uploaded';
         }
 
