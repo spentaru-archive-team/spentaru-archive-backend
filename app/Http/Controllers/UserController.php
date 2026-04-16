@@ -1,0 +1,89 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Http\Requests\StoreUserRequest;
+use App\Http\Requests\UpdateUserRequest;
+use App\Models\User;
+
+class UserController extends Controller
+{
+    /**
+     * Display a listing of the resource.
+     */
+    public function index()
+    {
+        $user = User::paginate(10);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'sukses menampilkan semua data user',
+            'data' => $user,
+        ], 200);
+    }
+
+    /**
+     * Store a newly created resource in storage.
+     */
+    public function store(StoreUserRequest $request)
+    {
+        $hashed_password = bcrypt($request->password);
+        User::create($request->safe()->except('password') + ['password' => $hashed_password]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'sukses membuat user',
+            'data' => $request->safe()->except('password'),
+        ], 201);
+    }
+
+    /**
+     * Display the specified resource.
+     */
+    public function show(string $id)
+    {
+        $user = User::findOrFail($id);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'sukses menampilkan data user dengan id '.$id,
+            'data' => $user,
+        ], 200);
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(UpdateUserRequest $request, string $id)
+    {
+        $user = User::findOrFail($id);
+
+        if ($request->filled('password')) {
+            $hashed_password = bcrypt($request->password);
+            $user->update($request->safe()->except('password') + ['password' => $hashed_password]);
+        } else {
+            $user->update($request->safe()->except('password'));
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'sukses mengupdate user',
+            'data' => $request->safe()->except('password'),
+        ], 200);
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(string $id)
+    {
+        $user = User::findOrFail($id);
+        $username = $user->username;
+        $user->delete();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'sukses menghapus user ' . $username,
+        ]);
+    }
+}

@@ -11,7 +11,7 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $credentials = $request->validate([
-            'email' => 'required|string|email|max:120',
+            'username' => 'required|string|max:120',
             'password' => 'required|string',
         ]);
 
@@ -32,7 +32,7 @@ class AuthController extends Controller
             'message' => 'Login successful',
             'data' => [
                 'id' => $user->getKey(),
-                'email' => $user->email,
+                'username' => $user->username,
                 'role' => $user->role,
                 'created_at' => optional($user->created_at)->toJSON(),
                 'updated_at' => optional($user->updated_at)->toJSON(),
