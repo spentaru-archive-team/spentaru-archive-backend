@@ -45,9 +45,9 @@ class Archive extends Model
         return $this->belongsTo(Subcategory::class, 'subcategory_id');
     }
 
-    public function files(): HasMany
+    public function files(): HasOne
     {
-        return $this->hasMany(ArchiveFile::class);
+        return $this->hasOne(ArchiveFile::class);
     }
 
     public function physicalLocation(): HasOne
