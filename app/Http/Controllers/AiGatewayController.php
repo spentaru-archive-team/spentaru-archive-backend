@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\AskAiRequest;
+use App\Http\Requests\ExtractOcrRequest;
+use App\Http\Requests\ExtractPdfNativeRequest;
 use App\Services\AiGatewayService;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
@@ -65,14 +68,9 @@ class AiGatewayController extends Controller
         }
     }
 
-    public function ask(Request $request)
+    public function ask(AskAiRequest $request)
     {
-        $validated = $request->validate([
-            'message' => ['required', 'string'],
-            'context' => ['nullable'],
-            'use_search' => ['sometimes', 'boolean'],
-        ]);
-
+        $validated = $request->validated();
         $traceId = $this->resolveTraceId($request);
 
         try {
@@ -92,12 +90,9 @@ class AiGatewayController extends Controller
         }
     }
 
-    public function extractOcr(Request $request)
+    public function extractOcr(ExtractOcrRequest $request)
     {
-        $validated = $request->validate([
-            'file' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,bmp,tiff,tif'],
-        ]);
-
+        $validated = $request->validated();
         $traceId = $this->resolveTraceId($request);
 
         try {
@@ -113,12 +108,9 @@ class AiGatewayController extends Controller
         }
     }
 
-    public function extractPdfNative(Request $request)
+    public function extractPdfNative(ExtractPdfNativeRequest $request)
     {
-        $validated = $request->validate([
-            'file' => ['required', 'file', 'mimes:pdf'],
-        ]);
-
+        $validated = $request->validated();
         $traceId = $this->resolveTraceId($request);
 
         try {
