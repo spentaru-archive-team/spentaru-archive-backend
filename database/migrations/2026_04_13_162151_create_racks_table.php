@@ -16,6 +16,7 @@ return new class extends Migration
             $table->foreignId('cabinet_id')->constrained('cabinets')->cascadeOnDelete();
             $table->unsignedInteger('rack_number');
             $table->unsignedInteger('capacity');
+            $table->unsignedInteger('used_capacity')->default(0);
             $table->timestamps();
 
             $table->unique(['cabinet_id', 'rack_number']);
