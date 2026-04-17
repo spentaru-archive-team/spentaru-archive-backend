@@ -486,6 +486,32 @@ Contoh response sukses:
 }
 ```
 
+## 19. AI Gateway (Frontend -> Backend -> AI Service)
+
+Semua request AI dari frontend harus lewat backend ini, **tidak langsung ke AI service**.
+
+| Method | Endpoint | Auth | Keterangan |
+|--------|----------|------|------------|
+| GET | `/ai/health` | sanctum | Cek status AI service |
+| POST | `/ai/chat/ask` | sanctum | Chatbot ask |
+| POST | `/ai/ocr/extract` | sanctum | OCR image extract |
+| POST | `/ai/pdf/extract-native` | sanctum | Native PDF text extract |
+
+Header trace:
+- Backend menerima `X-Trace-Id` dari request masuk (atau generate otomatis jika tidak ada).
+- Header ini diteruskan ke AI service untuk observability dan debugging lintas service.
+
+Body `POST /ai/chat/ask`:
+- `message`: required|string
+- `context`: nullable
+- `use_search`: optional|boolean
+
+Body `POST /ai/ocr/extract`:
+- `file`: required|file|mimes:jpg,jpeg,png,webp,bmp,tiff,tif
+
+Body `POST /ai/pdf/extract-native`:
+- `file`: required|file|mimes:pdf
+
 ## Contoh cURL
 
 Login:
@@ -536,4 +562,28 @@ Detail archive:
 curl -X GET http://127.0.0.1:8000/api/v1/archives/1 \
   -H "Accept: application/json" \
   -H "Authorization: Bearer <token>"
+```
+
+AI chat ask via backend gateway:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/ai/chat/ask \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -H "X-Trace-Id: trace-manual-001" \
+  -d '{
+    "message": "cara cari arsip rapat?",
+    "use_search": false
+  }'
+```
+
+AI OCR extract via backend gateway:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/ai/ocr/extract \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -H "X-Trace-Id: trace-manual-002" \
+  -F "file=@/path/ke/gambar.png"
 ```

@@ -1,0 +1,136 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Services\AiGatewayService;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Response;
+use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+
+class AiGatewayController extends Controller
+{
+    public function __construct(
+        private AiGatewayService $gateway
+    ) {}
+
+    private function resolveTraceId(Request $request): string
+    {
+        return (string) ($request->header('X-Trace-Id') ?: Str::uuid());
+    }
+
+    private function relayResponse(Response $response, string $successMessage)
+    {
+        $payload = $response->json();
+        $traceId = data_get($payload, 'trace_id') ?: $response->header('X-Trace-Id') ?: Str::uuid()->toString();
+
+        if ($response->successful()) {
+            return response()->json([
+                'status' => 'success',
+                'message' => $successMessage,
+                'data' => data_get($payload, 'data', []),
+                'trace_id' => $traceId,
+            ], 200)->header('X-Trace-Id', $traceId);
+        }
+
+        $upstreamMessage = data_get($payload, 'error.message') ?: 'AI service gagal memproses request';
+        $statusCode = $response->status();
+
+        if ($statusCode < 400 || $statusCode >= 500) {
+            $statusCode = 502;
+        }
+
+        return response()->json([
+            'status' => 'error',
+            'message' => $upstreamMessage,
+            'errors' => data_get($payload, 'error.details'),
+            'trace_id' => $traceId,
+        ], $statusCode)->header('X-Trace-Id', $traceId);
+    }
+
+    public function health(Request $request)
+    {
+        $traceId = $this->resolveTraceId($request);
+
+        try {
+            $response = $this->gateway->health($traceId);
+
+            return $this->relayResponse($response, 'sukses mengambil status AI service');
+        } catch (ConnectionException $exception) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'AI service tidak dapat dihubungi',
+                'trace_id' => $traceId,
+            ], 504)->header('X-Trace-Id', $traceId);
+        }
+    }
+
+    public function ask(Request $request)
+    {
+        $validated = $request->validate([
+            'message' => ['required', 'string'],
+            'context' => ['nullable'],
+            'use_search' => ['sometimes', 'boolean'],
+        ]);
+
+        $traceId = $this->resolveTraceId($request);
+
+        try {
+            $response = $this->gateway->askChat([
+                'message' => $validated['message'],
+                'context' => $validated['context'] ?? null,
+                'use_search' => $validated['use_search'] ?? false,
+            ], $traceId);
+
+            return $this->relayResponse($response, 'sukses mendapatkan jawaban AI');
+        } catch (ConnectionException $exception) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'AI service tidak dapat dihubungi',
+                'trace_id' => $traceId,
+            ], 504)->header('X-Trace-Id', $traceId);
+        }
+    }
+
+    public function extractOcr(Request $request)
+    {
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,bmp,tiff,tif'],
+        ]);
+
+        $traceId = $this->resolveTraceId($request);
+
+        try {
+            $response = $this->gateway->extractOcr($validated['file'], $traceId);
+
+            return $this->relayResponse($response, 'sukses mengekstrak teks OCR');
+        } catch (ConnectionException $exception) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'AI service tidak dapat dihubungi',
+                'trace_id' => $traceId,
+            ], 504)->header('X-Trace-Id', $traceId);
+        }
+    }
+
+    public function extractPdfNative(Request $request)
+    {
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'mimes:pdf'],
+        ]);
+
+        $traceId = $this->resolveTraceId($request);
+
+        try {
+            $response = $this->gateway->extractPdfNative($validated['file'], $traceId);
+
+            return $this->relayResponse($response, 'sukses mengekstrak teks PDF native');
+        } catch (ConnectionException $exception) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'AI service tidak dapat dihubungi',
+                'trace_id' => $traceId,
+            ], 504)->header('X-Trace-Id', $traceId);
+        }
+    }
+}

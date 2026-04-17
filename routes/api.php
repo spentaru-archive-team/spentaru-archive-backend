@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ArchiveController;
 use App\Http\Controllers\ArchivePhysicalLocationController;
+use App\Http\Controllers\AiGatewayController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CabinetController;
 use App\Http\Controllers\CategoryController;
@@ -101,5 +102,12 @@ Route::prefix('v1')->group(function () {
             Route::delete('/{id}', [UserController::class, 'destroy']);
             Route::put('/{id}/reset-password', [UserController::class, 'reset_password']);
         });
+    });
+
+    Route::prefix('ai')->middleware('auth:sanctum')->group(function () {
+        Route::get('/health', [AiGatewayController::class, 'health']);
+        Route::post('/chat/ask', [AiGatewayController::class, 'ask']);
+        Route::post('/ocr/extract', [AiGatewayController::class, 'extractOcr']);
+        Route::post('/pdf/extract-native', [AiGatewayController::class, 'extractPdfNative']);
     });
 });

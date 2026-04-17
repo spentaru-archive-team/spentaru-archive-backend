@@ -104,12 +104,12 @@ class AuthApiTest extends TestCase
                 'data' => [
                     'id' => $user->id,
                     'name' => 'Administrator',
-                    'username' => 'admin_me',
+                    'email' => null,
                     'role' => 'admin',
                 ],
             ])
             ->assertJsonMissingPath('data.password')
-            ->assertJsonMissingPath('data.email');
+            ->assertJsonMissingPath('data.username');
     }
 
     public function test_logout_requires_authentication(): void
