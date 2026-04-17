@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::create('cabinets', function (Blueprint $table) {
             $table->id();
+            $table->unsignedInteger('cabinet_number')->unique();
             $table->string('name')->unique();
             $table->timestamps();
         });

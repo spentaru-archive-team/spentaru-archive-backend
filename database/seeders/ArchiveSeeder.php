@@ -32,7 +32,7 @@ class ArchiveSeeder extends Seeder
         $subcategories = $this->seedSubcategories($categories);
         $events = $this->seedEvents($admin);
         $racks = $this->seedStorage();
-        $this->seedStorageRules($categories, $racks);
+        $this->seedStorageRules($categories);
 
         $documents = [
             'Surat Keputusan',
@@ -116,7 +116,7 @@ class ArchiveSeeder extends Seeder
                     'cabinet_id' => $rack->cabinet_id,
                     'rack_id' => $rack->id,
                     'slot_number' => $slotNumber,
-                    'label_code' => 'L'.$rack->cabinet_id.'-R'.$rack->id.'-S'.$slotNumber,
+                    'label_code' => 'L'.$rack->cabinet->cabinet_number.'-R'.$rack->id.'-S'.$slotNumber,
                     'notes' => 'Lokasi fisik arsip '.$title,
                 ]
             );
@@ -212,28 +212,30 @@ class ArchiveSeeder extends Seeder
 
     private function seedStorage(): Collection
     {
-        $cabinetNames = [
-            'Standar Isi',
-            'Standar Proses',
-            'Standar Kompetensi Lulusan',
-            'Standar Pendidik & Tenaga Kependidikan',
-            'Standar Sarana Prasarana',
-            'Standar Pengelolaan',
-            'Standar Pembiayaan',
-            'Standar Penilaian',
-            'Campuran',
-            'Lemari Soal Ujian/Sumatif',
-            'Lemari Laporan Dana BOS (1)',
-            'Lemari Kosong',
-            'Lemari Laporan Dana BOS (2)',
-            'Lemari Laporan Dana BOS (3)',
+        $cabinetDefinitions = [
+            ['cabinet_number' => 1, 'name' => 'Standar Isi'],
+            ['cabinet_number' => 2, 'name' => 'Standar Proses'],
+            ['cabinet_number' => 3, 'name' => 'Standar Kompetensi Lulusan'],
+            ['cabinet_number' => 4, 'name' => 'Standar Pendidik & Tenaga Kependidikan'],
+            ['cabinet_number' => 5, 'name' => 'Standar Sarana Prasarana'],
+            ['cabinet_number' => 6, 'name' => 'Standar Pengelolaan'],
+            ['cabinet_number' => 7, 'name' => 'Standar Pembiayaan'],
+            ['cabinet_number' => 8, 'name' => 'Standar Penilaian'],
+            ['cabinet_number' => 9, 'name' => 'Campuran'],
+            ['cabinet_number' => 10, 'name' => 'Lemari Soal Ujian/Sumatif'],
+            ['cabinet_number' => 11, 'name' => 'Lemari Laporan Dana BOS (1)'],
+            ['cabinet_number' => 12, 'name' => 'Lemari Kosong'],
+            ['cabinet_number' => 13, 'name' => 'Lemari Laporan Dana BOS (2)'],
+            ['cabinet_number' => 14, 'name' => 'Lemari Laporan Dana BOS (3)'],
         ];
 
-        foreach ($cabinetNames as $cabinetName) {
-            Cabinet::query()->updateOrCreate(['name' => $cabinetName], []);
+        foreach ($cabinetDefinitions as $cabinetDefinition) {
+            $cabinet = Cabinet::query()->firstOrNew(['name' => $cabinetDefinition['name']]);
+            $cabinet->cabinet_number = $cabinetDefinition['cabinet_number'];
+            $cabinet->save();
         }
 
-        $cabinets = Cabinet::query()->orderBy('id')->get();
+        $cabinets = Cabinet::query()->orderBy('cabinet_number')->get();
         $hasUsedCapacityColumn = Schema::hasColumn('racks', 'used_capacity');
 
         foreach ($cabinets as $cabinet) {
@@ -254,30 +256,33 @@ class ArchiveSeeder extends Seeder
             }
         }
 
-        return Rack::query()->orderBy('id')->get();
+        return Rack::query()->with('cabinet')->orderBy('id')->get();
     }
 
-    private function seedStorageRules(Collection $categories, Collection $racks): void
+    private function seedStorageRules(Collection $categories): void
     {
+        $cabinetIdsByNumber = Cabinet::query()->pluck('id', 'cabinet_number');
+
         $rules = [
-            ['name' => 'Data Siswa', 'cabinet_id' => 1, 'priority' => 10],
-            ['name' => 'Data Guru dan Staf', 'cabinet_id' => 1, 'priority' => 9],
-            ['name' => 'Akademik/Kurikulum', 'cabinet_id' => 2, 'priority' => 8],
-            ['name' => 'Administrasi Sekolah dan Bendahara', 'cabinet_id' => 2, 'priority' => 7],
-            ['name' => 'Inventaris Sekolah', 'cabinet_id' => 3, 'priority' => 6],
+            ['name' => 'Data Siswa', 'cabinet_number' => 1, 'priority' => 10],
+            ['name' => 'Data Guru dan Staf', 'cabinet_number' => 1, 'priority' => 9],
+            ['name' => 'Akademik/Kurikulum', 'cabinet_number' => 2, 'priority' => 8],
+            ['name' => 'Administrasi Sekolah dan Bendahara', 'cabinet_number' => 2, 'priority' => 7],
+            ['name' => 'Inventaris Sekolah', 'cabinet_number' => 3, 'priority' => 6],
         ];
 
         foreach ($rules as $rule) {
             $category = $categories->firstWhere('name', $rule['name']);
+            $cabinetId = $cabinetIdsByNumber->get($rule['cabinet_number']);
 
-            if ($category) {
+            if ($category && $cabinetId) {
                 ArchiveStorageRule::query()->updateOrCreate(
                     [
                         'category_id' => $category->id,
                         'subcategory_id' => null,
                     ],
                     [
-                        'cabinet_id' => $rule['cabinet_id'],
+                        'cabinet_id' => $cabinetId,
                         'priority' => $rule['priority'],
                     ]
                 );
