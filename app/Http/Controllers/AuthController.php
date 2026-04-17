@@ -39,6 +39,7 @@ class AuthController extends Controller
             'message' => 'Login successful',
             'data' => [
                 'id' => $user->getKey(),
+                'name' => $user->name,
                 'username' => $user->username,
                 'role' => $user->role,
                 'last_login_at' => $user->last_login_at,
@@ -73,8 +74,9 @@ class AuthController extends Controller
             'data' => [
                 'id' => $user->getKey(),
                 'name' => $user->name,
-                'email' => $user->email,
+                'username' => $user->username,
                 'role' => $user->role,
+                'last_login_at' => $user->last_login_at,
                 'created_at' => optional($user->created_at)->toJSON(),
                 'updated_at' => optional($user->updated_at)->toJSON(),
             ],
