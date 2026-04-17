@@ -10,14 +10,28 @@ class SubcategoryController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $perPage = $request->query('per_page', 10);
-        $query = Subcategory::with('category');
+        $query = Subcategory::with('category')
+            ->orderBy('created_at', 'desc');
 
-        if ($request->has('category_id')) {
+        // filter by category (untuk dependent dropdown)
+        if ($request->filled('category_id')) {
             $query->where('category_id', $request->category_id);
         }
 
-        $subcategories = $query->orderBy('created_at', 'desc')->paginate($perPage);
+        // tanpa pagination
+        if ($request->boolean('all')) {
+            $subcategories = $query->get();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'sukses mengambil semua subkategori',
+                'data' => $subcategories,
+            ]);
+        }
+
+        // dengan pagination
+        $perPage = $request->query('per_page', 10);
+        $subcategories = $query->paginate($perPage);
 
         return response()->json([
             'status' => 'success',

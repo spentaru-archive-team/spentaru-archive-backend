@@ -8,12 +8,19 @@ use Illuminate\Http\Request;
 
 class CategoryController extends Controller
 {
+    // PAGINATION DIUBAH JADI BISA DIATUR (all = true/false)
     public function index(Request $request): JsonResponse
     {
-        $perPage = $request->query('per_page', 10);
-        $categories = ArchiveCategory::with('subcategories')
-            ->orderBy('created_at', 'desc')
-            ->paginate($perPage);
+        $query = ArchiveCategory::with('subcategories')
+            ->orderBy('created_at', 'desc');
+
+        // Kalau minta semua data (tanpa pagination)
+        if ($request->boolean('all')) {
+            $categories = $query->get();
+        } else {
+            $perPage = $request->query('per_page', 10);
+            $categories = $query->paginate($perPage);
+        }
 
         return response()->json([
             'status' => 'success',
@@ -54,7 +61,7 @@ class CategoryController extends Controller
         $category = ArchiveCategory::findOrFail($id);
 
         $validated = $request->validate([
-            'name' => 'sometimes|required|string|max:255|unique:archive_categories,name,'.$id,
+            'name' => 'sometimes|required|string|max:255|unique:archive_categories,name,' . $id,
             'description' => 'nullable|string',
         ]);
 

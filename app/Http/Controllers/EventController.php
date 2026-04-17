@@ -11,10 +11,15 @@ class EventController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $perPage = $request->query('per_page', 10);
-        $events = Event::with('user')
-            ->orderBy('created_at', 'desc')
-            ->paginate($perPage);
+        $query = Event::with('user')
+            ->orderBy('created_at', 'desc');
+
+        if ($request->boolean('all')) {
+            $events = $query->get();
+        } else {
+            $perPage = $request->query('per_page', 10);
+            $events = $query->paginate($perPage);
+        }
 
         return response()->json([
             'status' => 'success',
