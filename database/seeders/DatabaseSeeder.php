@@ -15,15 +15,6 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        User::updateOrCreate(
-            ['username' => 'admin'],
-            [
-                'name' => 'Administrator',
-                'password' => 'password',
-                'role' => 'admin',
-            ]
-        );
-
         $this->call([
             ArchiveSeeder::class,
         ]);

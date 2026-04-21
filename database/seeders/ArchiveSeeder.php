@@ -20,9 +20,11 @@ class ArchiveSeeder extends Seeder
     public function run(): void
     {
         $admin = User::query()->firstOrCreate(
-            ['username' => 'admin'],
             [
-                'name' => 'Administrator',
+                'name' => 'Admin 1',
+                'subject' => 'Administrasi',
+                'position' => 'Administrator',
+                'username' => 'admin',
                 'password' => 'password',
                 'role' => 'admin',
             ]
