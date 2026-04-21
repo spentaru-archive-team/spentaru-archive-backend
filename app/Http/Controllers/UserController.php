@@ -7,15 +7,20 @@ use App\Http\Requests\UpdateProfileRequest;
 use App\Http\Requests\UpdateResetPasswordRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Models\User;
+use Illuminate\Http\Request;
 
 class UserController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $user = User::paginate(10);
+        if ($request->boolean('all')) {
+            $user = User::all();
+        } else {
+            $user = User::paginate(10);
+        }
 
         return response()->json([
             'status' => 'success',
@@ -48,7 +53,7 @@ class UserController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => 'sukses menampilkan data user dengan id '.$id,
+            'message' => 'sukses menampilkan data user dengan id ' . $id,
             'data' => $user,
         ], 200);
     }
@@ -85,7 +90,7 @@ class UserController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => 'sukses menghapus user '.$username,
+            'message' => 'sukses menghapus user ' . $username,
         ]);
     }
 
@@ -103,7 +108,7 @@ class UserController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Sukses mengubah password '.$username,
+            'message' => 'Sukses mengubah password ' . $username,
         ], 200);
     }
 
