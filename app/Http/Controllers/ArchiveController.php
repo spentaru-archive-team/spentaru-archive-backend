@@ -6,6 +6,7 @@ use App\Http\Requests\StoreArchiveRequest;
 use App\Http\Requests\UpdateArchiveRequest;
 use App\Models\Archive;
 use App\Services\ArchiveStorageService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -43,21 +44,25 @@ class ArchiveController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $page = Archive::with([
-            'event',
-            'category',
-            'subcategory',
-            'files',
-            'physicalLocation.cabinet',
-            'physicalLocation.rack',
-        ])->selectRaw('ROW_NUMBER() OVER (ORDER BY id) AS row_num, archives.*')->paginate(10);
+        if ($request->boolean('all')) {
+            $archives = Archive::orderBy('created_at', 'desc')->get();
+        } else {
+            $archives = Archive::with([
+                'event',
+                'category',
+                'subcategory',
+                'files',
+                'physicalLocation.cabinet',
+                'physicalLocation.rack',
+            ])->selectRaw('ROW_NUMBER() OVER (ORDER BY id) AS row_num, archives.*')->paginate(10);
+        }
 
         return response()->json([
             'status' => 'success',
             'message' => 'sukses mengambil archive',
-            'data' => $page,
+            'data' => $archives,
         ]);
     }
 
@@ -70,7 +75,7 @@ class ArchiveController extends Controller
         $file = $request->file('file');
         $timestamp = now()->format('YmdHisv');
         $random = Str::random(10);
-        $filename = str(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME).' '.$random.' '.$timestamp)->slug('_').'.'.strtolower($file->getClientOriginalExtension());
+        $filename = str(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME) . ' ' . $random . ' ' . $timestamp)->slug('_') . '.' . strtolower($file->getClientOriginalExtension());
         $path = $file->storeAs('uploads', $filename, 'public');
         try {
             $archive = DB::transaction(function () use ($path, $filename, $file, $req_archive) {
@@ -80,7 +85,7 @@ class ArchiveController extends Controller
                     'file_name' => $filename,
                     'file_size' => $file->getSize(),
                     'file_type' => strtolower($file->getClientOriginalExtension()),
-                    'file_url' => '/storage/'.$path,
+                    'file_url' => '/storage/' . $path,
                 ]);
 
                 $this->storageService->assignLocation(
@@ -147,7 +152,7 @@ class ArchiveController extends Controller
         $previousPaths = collect([$archive->files])
             ->filter()
             ->pluck('file_url')
-            ->map(fn (?string $fileUrl) => $this->storagePathFromUrl($fileUrl))
+            ->map(fn(?string $fileUrl) => $this->storagePathFromUrl($fileUrl))
             ->filter()
             ->values()
             ->all();
@@ -156,9 +161,9 @@ class ArchiveController extends Controller
             $file = $request->file('file');
             $timestamp = now()->format('YmdHisv');
             $random = Str::random(10);
-            $filename = str(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME).' '.$random.' '.$timestamp)->slug('_').'.'.strtolower($file->getClientOriginalExtension());
+            $filename = str(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME) . ' ' . $random . ' ' . $timestamp)->slug('_') . '.' . strtolower($file->getClientOriginalExtension());
             $storedPath = $file->storeAs('uploads', $filename, 'public');
-            $path = '/storage/'.$storedPath;
+            $path = '/storage/' . $storedPath;
 
             if (! $this->hasSameValue($archive->status, 'uploaded')) {
                 $archiveData['status'] = 'uploaded';
