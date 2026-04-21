@@ -25,6 +25,8 @@ class StoreUserRequest extends FormRequest
     {
         return [
             'name' => 'string|max:200|required',
+            'subject' => 'string|max:200|required',
+            'position' => 'string|max:200|required',
             'username' => 'string|max:120|required',
             'password' => ['string','min:8', 'required', Password::min(8)->letters()->numbers()->mixedCase()],
             'role' => 'required|in:guru,admin|required'
