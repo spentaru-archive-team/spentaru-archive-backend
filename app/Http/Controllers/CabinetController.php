@@ -10,10 +10,9 @@ class CabinetController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $perPage = $request->query('per_page', 10);
         $cabinets = Cabinet::with('racks')
             ->orderBy('created_at', 'desc')
-            ->paginate($perPage);
+            ->get();
 
         return response()->json([
             'status' => 'success',
