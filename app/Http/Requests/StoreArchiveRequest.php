@@ -30,6 +30,7 @@ class StoreArchiveRequest extends FormRequest
             'event_id' => 'nullable|integer|min:0|exists:events,id',
             'category_id' => 'required|integer|min:0|exists:archive_categories,id',
             'subcategory_id' => 'nullable|integer|min:0|exists:subcategories,id',
+            'uploaded_by' => 'nullable|integer|min:0|exists:users,id',
         ];
     }
 }

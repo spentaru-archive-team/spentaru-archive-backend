@@ -19,6 +19,7 @@ class Archive extends Model
         'notes',
         'category_id',
         'subcategory_id',
+        'uploaded_by',
         'status',
     ];
 
@@ -28,6 +29,11 @@ class Archive extends Model
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
+    }
+
+    public function uploadedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'uploaded_by');
     }
 
     public function event(): BelongsTo

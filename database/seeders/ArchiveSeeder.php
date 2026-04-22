@@ -85,6 +85,7 @@ class ArchiveSeeder extends Seeder
                     'notes' => $i % 4 === 0 ? null : 'Arsip nomor '.$i.' untuk kebutuhan dokumentasi sekolah.',
                     'category_id' => $category->id,
                     'subcategory_id' => $i % 6 === 0 || $subcategory === null ? null : $subcategory->id,
+                    'uploaded_by' => $admin->id,
                     'status' => $status,
                 ]
             );

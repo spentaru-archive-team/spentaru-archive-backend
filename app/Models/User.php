@@ -55,6 +55,11 @@ class User extends Authenticatable
         return $this->hasMany(Event::class);
     }
 
+    public function archives(): HasMany
+    {
+        return $this->hasMany(Archive::class, 'uploaded_by');
+    }
+
     protected function serializeDate(DateTimeInterface $date): string
     {
         return $date->format('Y-m-d H:i:s');
