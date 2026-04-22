@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreArchivePhysicalLocationRequest;
 use App\Http\Requests\UpdateArchivePhysicalLocationRequest;
 use App\Models\Archive;
+use App\Models\ArchivePhysicalLocation;
 
 class ArchivePhysicalLocationController extends Controller
 {
@@ -36,6 +37,18 @@ class ArchivePhysicalLocationController extends Controller
         return 'L'.$payload['cabinet_id'].'-R'.$payload['rack_id'].'-S'.$payload['slot_number'];
     }
 
+    public function index()
+    {
+        $physicalLocations = ArchivePhysicalLocation::with(['archive', 'cabinet', 'rack'])->get();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'sukses menampilkan semua physical location dari arsip',
+            'data' => $physicalLocations,
+        ]);
+    }
+
+
     public function show(string $id)
     {
         $archive = Archive::with('physicalLocation.cabinet', 'physicalLocation.rack')->findOrFail($id);
@@ -54,6 +67,9 @@ class ArchivePhysicalLocationController extends Controller
             'data' => $physicalLocation,
         ]);
     }
+
+
+
 
     public function store(StoreArchivePhysicalLocationRequest $request, string $id)
     {
@@ -76,6 +92,9 @@ class ArchivePhysicalLocationController extends Controller
             'data' => $physicalLocation->load('cabinet', 'rack'),
         ], 201);
     }
+
+
+
 
     public function update(UpdateArchivePhysicalLocationRequest $request, string $id)
     {

@@ -26,6 +26,7 @@ Route::prefix('v1')->group(function () {
         Route::middleware('auth:sanctum')->group(function () {
             Route::get('/', [ArchiveController::class, 'index']);
             Route::post('/', [ArchiveController::class, 'store']);
+            Route::get('/physical-location', [ArchivePhysicalLocationController::class, 'index']);
             Route::get('/{id}', [ArchiveController::class, 'show']);
             Route::put('/{id}', [ArchiveController::class, 'update']);
             Route::delete('/{id}', [ArchiveController::class, 'destroy']);

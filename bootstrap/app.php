@@ -54,12 +54,12 @@ return Application::configure(basePath: dirname(__DIR__))
             ], 403);
         });
 
-        $exceptions->render(function (NotFoundHttpException $e, Request $request) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Resource tidak ditemukan',
-            ], 404);
-        });
+        // $exceptions->render(function (NotFoundHttpException $e, Request $request) {
+        //     return response()->json([
+        //         'status' => 'error',
+        //         'message' => 'Resource tidak ditemukan',
+        //     ], 404);
+        // });
 
         $exceptions->render(function (MethodNotAllowedHttpException $e, Request $request) {
             return response()->json([

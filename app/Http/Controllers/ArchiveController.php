@@ -211,7 +211,13 @@ class ArchiveController extends Controller
     public function destroy(string $id)
     {
         $archive = Archive::with('files')->findOrFail($id);
-        $filePaths = $archive->files->pluck('file_url')->filter()->all();
+        $filePaths = collect([$archive->files])
+            ->filter()
+            ->pluck('file_url')
+            ->map(fn(?string $fileUrl) => $this->storagePathFromUrl($fileUrl))
+            ->filter()
+            ->values()
+            ->all();
 
         DB::transaction(function () use ($archive) {
             $archive->delete();
