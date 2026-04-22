@@ -11,8 +11,7 @@ class CategoryController extends Controller
     // PAGINATION DIUBAH JADI BISA DIATUR (all = true/false)
     public function index(Request $request): JsonResponse
     {
-        $query = ArchiveCategory::with('subcategories')
-            ->orderBy('created_at', 'desc');
+        $query = ArchiveCategory::with('subcategories');
 
         // Kalau minta semua data (tanpa pagination)
         if ($request->boolean('all')) {
@@ -34,9 +33,21 @@ class CategoryController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:archive_categories,name',
             'description' => 'nullable|string',
+            'subcategories' => 'nullable|array',
+            'subcategories.*.name' => 'required_with:subcategories|string|max:255',
         ]);
 
-        $category = ArchiveCategory::create($validated);
+        $category = ArchiveCategory::create([
+            'name' => $validated['name'],
+            'description' => $validated['description'] ?? null,
+        ]);
+
+        $subcategories = $validated['subcategories'] ?? [];
+        foreach ($subcategories as $subcat) {
+            $category->subcategories()->create([
+                'name' => $subcat['name'],
+            ]);
+        }
 
         return response()->json([
             'status' => 'success',
