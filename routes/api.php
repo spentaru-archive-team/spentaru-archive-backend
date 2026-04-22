@@ -6,6 +6,7 @@ use App\Http\Controllers\AiGatewayController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CabinetController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\RackController;
 use App\Http\Controllers\SubcategoryController;
@@ -110,5 +111,9 @@ Route::prefix('v1')->group(function () {
         Route::post('/chat/ask', [AiGatewayController::class, 'ask']);
         Route::post('/ocr/extract', [AiGatewayController::class, 'extractOcr']);
         Route::post('/pdf/extract-native', [AiGatewayController::class, 'extractPdfNative']);
+    });
+
+    Route::prefix('dashboard')->middleware('auth:sanctum')->group(function() {
+        Route::get('/', [DashboardController::class, 'index']);
     });
 });
