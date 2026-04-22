@@ -74,9 +74,31 @@ class CategoryController extends Controller
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255|unique:archive_categories,name,' . $id,
             'description' => 'nullable|string',
+            'subcategories' => 'nullable|array',
+            'subcategories.*.id' => 'sometimes|integer|exists:subcategories,id',
+            'subcategories.*.name' => 'required_with:subcategories|string|max:255',
         ]);
 
-        $category->update($validated);
+        $category->update([
+            'name' => $validated['name'] ?? $category->name,
+            'description' => $validated['description'] ?? $category->description,
+        ]);
+
+        $subcategories = $validated['subcategories'] ?? [];
+        foreach ($subcategories as $subcat) {
+            if (isset($subcat['id'])) {
+                $subcategory = $category->subcategories()->find($subcat['id']);
+                if ($subcategory) {
+                    $subcategory->update([
+                        'name' => $subcat['name'],
+                    ]);
+                }
+            } else {
+                $category->subcategories()->create([
+                    'name' => $subcat['name'],
+                ]);
+            }
+        }
 
         return response()->json([
             'status' => 'success',
