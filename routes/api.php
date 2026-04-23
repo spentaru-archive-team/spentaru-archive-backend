@@ -27,14 +27,14 @@ Route::prefix('v1')->group(function () {
         Route::middleware('auth:sanctum')->group(function () {
             Route::get('/', [ArchiveController::class, 'index']);
             Route::post('/', [ArchiveController::class, 'store']);
-            Route::get('/physical-location', [ArchivePhysicalLocationController::class, 'index']);
+            Route::get('/physical-locations', [ArchivePhysicalLocationController::class, 'index']);
             Route::get('/{id}', [ArchiveController::class, 'show']);
             Route::put('/{id}', [ArchiveController::class, 'update']);
             Route::delete('/{id}', [ArchiveController::class, 'destroy']);
-            Route::get('/{id}/physical-location', [ArchivePhysicalLocationController::class, 'show']);
-            Route::post('/{id}/physical-location', [ArchivePhysicalLocationController::class, 'store']);
-            Route::put('/{id}/physical-location', [ArchivePhysicalLocationController::class, 'update']);
-            Route::delete('/{id}/physical-location', [ArchivePhysicalLocationController::class, 'destroy']);
+            Route::get('/{id}/physical-locations', [ArchivePhysicalLocationController::class, 'show']);
+            Route::post('/{id}/physical-locations', [ArchivePhysicalLocationController::class, 'store']);
+            Route::put('/{id}/physical-locations', [ArchivePhysicalLocationController::class, 'update']);
+            Route::delete('/{id}/physical-locations', [ArchivePhysicalLocationController::class, 'destroy']);
         });
     });
 
