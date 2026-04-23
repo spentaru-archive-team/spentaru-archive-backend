@@ -1,7 +1,7 @@
 # AGENTS.md
 
-> Project: backend Laravel 13 untuk sistem arsip sekolah.
-> Prinsip: `AGENTS.md` ini peta singkat agar hemat token. Detail kontrak API ada di `docs/api.md`. Sumber kebenaran skema tetap migration dan kode aktif.
+> Project: backend Laravel untuk sistem arsip sekolah.
+> Prinsip: file ini ringkas. Kontrak endpoint aktif ada di `docs/api.md`, tetapi source of truth tetap migration, route, request, controller, dan model aktif.
 
 ## Identity
 
@@ -45,31 +45,35 @@ Gunakan Bahasa Indonesia: ringkas, langsung, teknis.
 - Setelah ubah file PHP, minimal jalankan `php -l <file>`.
 - Pertahankan response JSON: `status`, `message`, lalu opsional `data` / `errors`.
 - Untuk endpoint terproteksi, anggap auth memakai `Authorization: Bearer <token>`.
-- Jika request ambigu, cek migration, model, route, controller, dan docs sebelum mengubah code.
+- Jika request ambigu, cek migration, model, route, request, controller, dan docs sebelum mengubah code.
 
 ## Source Of Truth
 
 Urutan cek:
-1. `database/migrations/` untuk schema, foreign key, unique, dan nullable.
+1. `database/migrations/` untuk schema, foreign key, unique, nullable, dan cascade.
 2. `routes/api.php` untuk route aktif dan middleware.
-3. `app/Http/Controllers/` untuk perilaku aktual endpoint.
-4. `app/Models/` untuk relasi dan fillable.
-5. `docs/api.md` untuk ringkasan kontrak API yang sudah diselaraskan dengan repo.
+3. `app/Http/Requests/` untuk kontrak validasi request.
+4. `app/Http/Controllers/` untuk perilaku endpoint.
+5. `app/Models/` untuk relasi dan fillable.
+6. `docs/api.md` untuk ringkasan kontrak API yang sudah diselaraskan dengan repo.
 
 Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
 
 ## Current Project State
 
 - Auth API memakai Laravel Sanctum personal access token stateless.
-- Token Sanctum disimpan di MySQL `personal_access_tokens`, bukan Redis.
+- Login dibatasi `throttle:5,1`.
+- Token Sanctum disimpan di MySQL `personal_access_tokens`.
 - User roles: `admin` dan `guru`.
-- Role-based access control:
-  - `admin` bisa CRUD semua master data (events, categories, subcategories, cabinets, racks, users)
-  - `guru` hanya bisa READ master data + full CRUD archives + self-update profile
-  - Semua user bisa akses archives dan update profil sendiri via `/users/me`
+- RBAC aktif:
+  - `admin` bisa CRUD master data dan user.
+  - `guru` bisa read master data, full CRUD archive, akses dashboard, AI gateway, dan update profil sendiri.
 - Upload file archive memakai `multipart/form-data`, file fisik ke disk `public`, metadata ke tabel `archive_files`.
-- Archive auto-assign physical location via `ArchiveStorageService`.
-- Redis boleh dipakai untuk cache/queue/lock, tetapi MySQL tetap source of truth domain.
+- Archive bisa punya `physical_location` dan `ocr_text`.
+- Archive auto-assign physical location via `ArchiveStorageService` saat create archive bila rule/rak tersedia.
+- Ada endpoint manual untuk CRUD physical location archive.
+- Ada AI gateway internal via `AiGatewayController` untuk health, chat, OCR gambar, dan ekstraksi PDF native.
+- Global JSON exception handling ada di `bootstrap/app.php` untuk 401, 403, 405, 422, dan 429.
 
 ## Domain Map
 
@@ -78,7 +82,7 @@ archives
   belongsTo event
   belongsTo archive_categories
   belongsTo subcategories
-  hasMany archive_files
+  hasOne archive_files
   hasOne archive_physical_locations
   hasOne ocr_texts
 
@@ -86,25 +90,35 @@ storage domain
   cabinets
   racks
   archive_storage_rules
+
+ai gateway
+  /ai/health
+  /ai/chat/ask
+  /ai/ocr/extract
+  /ai/pdf/extract-native
 ```
 
 ## Working Rules
 
-- Saat mengubah fitur archive, cek konsistensi model, migration, controller, route, seeder, dan storage file.
+- Saat mengubah fitur archive, cek konsistensi model, migration, request, controller, route, seeder, dan storage file.
 - Untuk resource tunggal, utamakan `findOrFail()` atau `firstOrFail()`.
 - Gunakan relationship Eloquent yang eksplisit, bukan query lepas bila relasi sudah tersedia.
 - Jangan simpan file upload ke database; simpan file ke storage, metadata ke tabel relasi.
 - Jika menambah cache Redis, dokumentasikan key, TTL, dan titik invalidasinya secara singkat di kode atau docs terkait.
+- Jika mengubah kontrak endpoint AI gateway, cek juga `config/services.php` dan downstream payload yang diteruskan.
 
 ## File Map
 
 ```text
 app/Http/Controllers/AuthController.php
-  login/logout auth API
+  login, logout, me
 
 app/Http/Controllers/ArchiveController.php
-  CRUD archive + upload/update/delete file archive
+  CRUD archive + upload/update file archive
   auto-assign physical location via ArchiveStorageService
+
+app/Http/Controllers/ArchivePhysicalLocationController.php
+  list/show/create/update/delete physical location archive
 
 app/Http/Controllers/EventController.php
   CRUD event (admin-only write)
@@ -122,26 +136,32 @@ app/Http/Controllers/RackController.php
   CRUD rack (admin-only write)
 
 app/Http/Controllers/UserController.php
-  CRUD user (admin-only) + self-update profile
+  CRUD user (admin-only) + self-update profile + reset password
 
-app/Http/Requests/StoreArchiveRequest.php
-  validasi create archive
+app/Http/Controllers/DashboardController.php
+  summary total archive, kategori, subkategori, user
 
-app/Http/Requests/UpdateProfileRequest.php
-  validasi self-update profile
+app/Http/Controllers/AiGatewayController.php
+  proxy AI service + trace id handling
+
+app/Http/Requests/
+  validasi request archive, physical location, user, profile, dan AI gateway
 
 app/Services/ArchiveStorageService.php
-  auto-assign slot & generate label_code (L1-R1-S01)
+  cari slot available + assign label_code
+
+app/Services/AiGatewayService.php
+  HTTP client ke service AI upstream
 
 bootstrap/app.php
-  exception handling JSON global + auth 401 handling
+  exception handling JSON global + auth/admin middleware alias
 
 docs/api.md
-  ringkasan endpoint aktif dan contoh request/response
+  ringkasan endpoint aktif dan contoh payload/response
 ```
 
 ## Maintenance
 
 - Jaga file ini tetap pendek.
-- Pindahkan detail endpoint, payload, atau contoh panjang ke `docs/api.md`.
-- Jika ada perubahan arsitektur, auth, atau kontrak endpoint, update `AGENTS.md` dan `docs/api.md` di task yang sama.
+- Pindahkan contoh payload/response detail ke `docs/api.md`.
+- Jika ada perubahan arsitektur, auth, middleware, atau kontrak endpoint, update `AGENTS.md` dan `docs/api.md` di task yang sama.
