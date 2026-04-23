@@ -41,9 +41,9 @@ class ArchivePhysicalLocationController extends Controller
     public function index(Request $request)
     {
         if ($request->boolean('all')) {
-            $physicalLocations = ArchivePhysicalLocation::with(['archive', 'cabinet', 'rack'])->get();
+            $physicalLocations = ArchivePhysicalLocation::with(['archive.files', 'cabinet', 'rack'])->get();
         } else {
-            $physicalLocations = ArchivePhysicalLocation::with(['archive', 'cabinet', 'rack'])->paginate(10);
+            $physicalLocations = ArchivePhysicalLocation::with(['archive.files', 'cabinet', 'rack'])->paginate(10);
         }
 
         return response()->json([
