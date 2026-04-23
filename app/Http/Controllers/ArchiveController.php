@@ -41,6 +41,17 @@ class ArchiveController extends Controller
             : ltrim($fileUrl, '/');
     }
 
+    public function archivesWithoutLocation()
+    {
+        $archives = Archive::doesntHave('physicalLocation')->get();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'sukses mengambil arsip yang belum memiliki lokasi fisik',
+            'data' => $archives,
+        ]);
+    }
+
     /**
      * Display a listing of the resource.
      */
