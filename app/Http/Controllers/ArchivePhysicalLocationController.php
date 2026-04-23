@@ -6,6 +6,7 @@ use App\Http\Requests\StoreArchivePhysicalLocationRequest;
 use App\Http\Requests\UpdateArchivePhysicalLocationRequest;
 use App\Models\Archive;
 use App\Models\ArchivePhysicalLocation;
+use Illuminate\Http\Request;
 
 class ArchivePhysicalLocationController extends Controller
 {
@@ -37,9 +38,13 @@ class ArchivePhysicalLocationController extends Controller
         return 'L'.$payload['cabinet_id'].'-R'.$payload['rack_id'].'-S'.$payload['slot_number'];
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        $physicalLocations = ArchivePhysicalLocation::with(['archive', 'cabinet', 'rack'])->get();
+        if ($request->boolean('all')) {
+            $physicalLocations = ArchivePhysicalLocation::with(['archive', 'cabinet', 'rack'])->get();
+        } else {
+            $physicalLocations = ArchivePhysicalLocation::with(['archive', 'cabinet', 'rack'])->paginate(10);
+        }
 
         return response()->json([
             'status' => 'success',
