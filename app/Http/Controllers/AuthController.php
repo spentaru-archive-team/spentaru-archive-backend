@@ -2,12 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Laravel\Sanctum\PersonalAccessToken;
-
-use function Symfony\Component\Clock\now;
 
 class AuthController extends Controller
 {
@@ -27,12 +23,11 @@ class AuthController extends Controller
             ], 401);
         }
 
+        $request->session()->regenerate();
 
         $user = Auth::user();
-        // $user->update(['last_login_at' => now()]);
-        $user->last_login_at=now();
+        $user->last_login_at = now();
         $user->save();
-        $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
             'status' => 'success',
@@ -45,18 +40,15 @@ class AuthController extends Controller
                 'last_login_at' => $user->last_login_at,
                 'created_at' => optional($user->created_at)->toJSON(),
                 'updated_at' => optional($user->updated_at)->toJSON(),
-                'token' => $token,
             ],
         ]);
     }
 
     public function logout(Request $request)
     {
-        $token = $request->user()?->currentAccessToken();
-
-        if ($token instanceof PersonalAccessToken) {
-            $token->delete();
-        }
+        Auth::guard('web')->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
         return response()->json([
             'status' => 'success',

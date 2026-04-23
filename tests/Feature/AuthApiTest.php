@@ -3,9 +3,6 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Hash;
-use Laravel\Sanctum\PersonalAccessToken;
-use Laravel\Sanctum\Sanctum;
 use Tests\Feature\Concerns\CreatesApiFixtures;
 use Tests\TestCase;
 
@@ -43,7 +40,7 @@ class AuthApiTest extends TestCase
             ]);
     }
 
-    public function test_login_returns_token_and_updates_last_login_at(): void
+    public function test_login_creates_session_and_updates_last_login_at(): void
     {
         $user = $this->createUser([
             'username' => 'admin_login',
@@ -66,12 +63,15 @@ class AuthApiTest extends TestCase
                     'role' => 'admin',
                 ],
             ])
-            ->assertJsonPath('data.token', fn (mixed $token) => is_string($token) && $token !== '')
+            ->assertJsonMissingPath('data.token')
             ->assertJsonPath('data.last_login_at', fn (mixed $value) => is_string($value) && $value !== '');
+
+        $response->assertCookie(config('session.cookie'));
+        $this->assertAuthenticatedAs($user, 'web');
 
         $user->refresh();
         $this->assertNotNull($user->last_login_at);
-        $this->assertDatabaseCount('personal_access_tokens', 1);
+        $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
     public function test_me_requires_authentication(): void
@@ -94,7 +94,7 @@ class AuthApiTest extends TestCase
         ]);
         $user->forceFill(['last_login_at' => now()])->save();
 
-        Sanctum::actingAs($user);
+        $this->actingAs($user, 'web');
 
         $this->getJson('/api/v1/auth/me')
             ->assertOk()
@@ -104,12 +104,12 @@ class AuthApiTest extends TestCase
                 'data' => [
                     'id' => $user->id,
                     'name' => 'Administrator',
-                    'email' => null,
+                    'username' => 'admin_me',
                     'role' => 'admin',
                 ],
             ])
             ->assertJsonMissingPath('data.password')
-            ->assertJsonMissingPath('data.username');
+            ->assertJsonMissingPath('data.email');
     }
 
     public function test_logout_requires_authentication(): void
@@ -122,23 +122,24 @@ class AuthApiTest extends TestCase
             ]);
     }
 
-    public function test_logout_deletes_current_token(): void
+    public function test_logout_invalidates_authenticated_session(): void
     {
         $user = $this->createUser([
             'username' => 'logout_admin',
             'password' => 'Password123',
             'role' => 'admin',
         ]);
-        $plainTextToken = $user->createToken('auth_token')->plainTextToken;
 
-        $this->withHeader('Authorization', 'Bearer '.$plainTextToken)
-            ->postJson('/api/v1/auth/logout')
+        $this->actingAs($user, 'web');
+
+        $this->postJson('/api/v1/auth/logout')
             ->assertOk()
             ->assertJson([
                 'status' => 'success',
                 'message' => 'Logout sukses',
             ]);
 
+        $this->assertGuest('web');
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 }

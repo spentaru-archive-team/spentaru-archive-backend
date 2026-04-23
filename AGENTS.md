@@ -44,7 +44,7 @@ Gunakan Bahasa Indonesia: ringkas, langsung, teknis.
 - Setelah ubah route atau middleware, jalankan `php artisan route:list`.
 - Setelah ubah file PHP, minimal jalankan `php -l <file>`.
 - Pertahankan response JSON: `status`, `message`, lalu opsional `data` / `errors`.
-- Untuk endpoint terproteksi, anggap auth memakai `Authorization: Bearer <token>`.
+- Untuk endpoint terproteksi, cek dulu apakah flow auth aktif memakai cookie session Sanctum stateful atau bearer token.
 - Jika request ambigu, cek migration, model, route, request, controller, dan docs sebelum mengubah code.
 
 ## Source Of Truth
@@ -61,9 +61,9 @@ Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
 
 ## Current Project State
 
-- Auth API memakai Laravel Sanctum personal access token stateless.
+- Auth API memakai Laravel Sanctum stateful berbasis session cookie untuk SPA/first-party frontend.
 - Login dibatasi `throttle:5,1`.
-- Token Sanctum disimpan di MySQL `personal_access_tokens`.
+- Frontend perlu ambil CSRF cookie via `GET /sanctum/csrf-cookie` sebelum `POST /api/v1/auth/login`.
 - User roles: `admin` dan `guru`.
 - RBAC aktif:
   - `admin` bisa CRUD master data dan user.

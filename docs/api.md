@@ -9,8 +9,9 @@ http://127.0.0.1:8000/api/v1
 ## Konvensi Umum
 
 - Response JSON mengikuti pola `status`, `message`, lalu opsional `data`, `errors`, `trace_id`.
-- Auth API memakai bearer token Sanctum stateless.
-- Endpoint terproteksi memakai header `Authorization: Bearer <token>`.
+- Auth API memakai Laravel Sanctum stateful berbasis session cookie.
+- Frontend SPA/first-party harus panggil `GET /sanctum/csrf-cookie` sebelum login.
+- Endpoint terproteksi mengandalkan cookie session + header CSRF untuk request stateful lintas origin.
 - Upload file arsip, OCR, dan PDF native memakai `multipart/form-data`.
 - Error global yang sudah ditangani konsisten:
   - `401` unauthenticated
@@ -31,7 +32,7 @@ http://127.0.0.1:8000/api/v1
 | Method | Endpoint | Auth | Keterangan |
 |---|---|---|---|
 | `POST` | `/auth/login` | Tidak | Login, throttle `5 request/menit` |
-| `POST` | `/auth/logout` | Ya | Logout token aktif |
+| `POST` | `/auth/logout` | Ya | Logout session aktif |
 | `GET` | `/auth/me` | Ya | Profil user aktif |
 
 ### Archive
@@ -126,6 +127,14 @@ Accept: application/json
 Content-Type: application/json
 ```
 
+Prasyarat untuk SPA/first-party frontend:
+
+```http
+GET /sanctum/csrf-cookie
+```
+
+Request login dan request stateful berikutnya harus mengirim cookie hasil endpoint di atas. Jika frontend beda origin, aktifkan `withCredentials`/`credentials: "include"` dan kirim header CSRF sesuai mekanisme client yang dipakai.
+
 Body:
 
 | Key | Tipe | Wajib | Aturan |
@@ -146,8 +155,7 @@ Contoh response sukses:
     "role": "admin",
     "last_login_at": "2026-04-23T10:15:00.000000Z",
     "created_at": "2026-04-11T16:50:44.000000Z",
-    "updated_at": "2026-04-23T10:15:00.000000Z",
-    "token": "1|exampletoken"
+    "updated_at": "2026-04-23T10:15:00.000000Z"
   }
 }
 ```
@@ -161,6 +169,13 @@ Kemungkinan error:
 
 ```http
 POST /api/v1/auth/logout
+```
+
+Header untuk frontend lintas origin:
+
+```http
+X-XSRF-TOKEN: <csrf-token>
+Cookie: XSRF-TOKEN=...; spentaru-archive-backend-session=...
 ```
 
 Contoh response:
