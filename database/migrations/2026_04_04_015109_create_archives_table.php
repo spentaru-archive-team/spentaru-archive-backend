@@ -17,7 +17,7 @@ return new class extends Migration
             $table->foreignId('category_id')->constrained('archive_categories')->restrictOnDelete();
             $table->foreignId('subcategory_id')->nullable()->constrained('subcategories')->nullOnDelete();
             $table->enum('status', ['pending_upload', 'uploaded'])->default('pending_upload');
-            $table->foreignId('uploaded_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('uploader')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
 
             $table->index(['category_id', 'subcategory_id']);

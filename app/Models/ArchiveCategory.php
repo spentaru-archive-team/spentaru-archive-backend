@@ -13,6 +13,7 @@ class ArchiveCategory extends Model
     protected $fillable = [
         'name',
         'description',
+        'has_subcategory'
     ];
 
     protected function casts(): array
@@ -20,6 +21,7 @@ class ArchiveCategory extends Model
         return [
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
+            'has_subcategory' => 'boolean'
         ];
     }
 

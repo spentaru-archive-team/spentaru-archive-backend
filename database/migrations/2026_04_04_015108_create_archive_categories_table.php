@@ -11,6 +11,7 @@ return new class extends Migration
         Schema::create('archive_categories', function (Blueprint $table) {
             $table->id();
             $table->string('name');
+            $table->boolean('has_subcategory')->default(0);
             $table->text('description')->nullable();
             $table->timestamps();
         });

@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Archive extends Model
@@ -19,7 +18,7 @@ class Archive extends Model
         'notes',
         'category_id',
         'subcategory_id',
-        'uploaded_by',
+        'uploader',
         'status',
     ];
 
@@ -31,9 +30,9 @@ class Archive extends Model
         ];
     }
 
-    public function uploadedBy(): BelongsTo
+    public function uploader(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'uploaded_by');
+        return $this->belongsTo(User::class, 'uploader');
     }
 
     public function event(): BelongsTo
@@ -65,4 +64,5 @@ class Archive extends Model
     {
         return $this->hasOne(OcrText::class);
     }
+
 }

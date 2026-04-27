@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ArchiveCategory;
 use App\Models\Subcategory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -59,6 +60,9 @@ class SubcategoryController extends Controller
         }
 
         $subcategory = Subcategory::create($validated);
+
+        ArchiveCategory::find($request->category_id)->update(['has_subcategory' => true]);
+        
 
         return response()->json([
             'status' => 'success',

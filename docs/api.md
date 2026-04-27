@@ -3,7 +3,7 @@
 Base URL lokal:
 
 ```text
-http://127.0.0.1:8000/api/v1
+http://localhost:8000/api/v1
 ```
 
 ## Konvensi Umum
@@ -287,7 +287,7 @@ Body:
 | `event_id` | `integer` | Tidak | nullable, `exists:events,id` |
 | `category_id` | `integer` | Ya | `exists:archive_categories,id` |
 | `subcategory_id` | `integer` | Tidak | nullable, `exists:subcategories,id` |
-| `uploaded_by` | `integer` | Tidak | nullable, `exists:users,id` |
+| `uploader` | `integer` | Tidak | nullable, `exists:users,id` |
 
 Perilaku implementasi:
 - File disimpan ke disk `public` pada path relatif `uploads/<slug>.<ext>`.
@@ -340,7 +340,7 @@ Field valid:
 | `event_id` | `integer \| null` | opsional |
 | `category_id` | `integer` | opsional |
 | `subcategory_id` | `integer \| null` | opsional |
-| `uploaded_by` | `integer \| null` | opsional |
+| `uploader` | `integer \| null` | opsional |
 
 Perilaku penting:
 - Jika `file` diganti, metadata file lama dihapus dan file fisik lama ikut dihapus setelah transaksi sukses.

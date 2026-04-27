@@ -19,16 +19,8 @@ class ArchiveSeeder extends Seeder
 {
     public function run(): void
     {
-        $admin = User::query()->firstOrCreate(
-            [
-                'name' => 'Admin 1',
-                'subject' => 'Administrasi',
-                'position' => 'Administrator',
-                'username' => 'admin',
-                'password' => 'password',
-                'role' => 'admin',
-            ]
-        );
+        $users = $this->seedUsers();
+        $admin = $users->firstWhere('username', 'admin');
 
         $categories = $this->seedCategories();
         $subcategories = $this->seedSubcategories($categories);
@@ -85,7 +77,7 @@ class ArchiveSeeder extends Seeder
                     'notes' => $i % 4 === 0 ? null : 'Arsip nomor '.$i.' untuk kebutuhan dokumentasi sekolah.',
                     'category_id' => $category->id,
                     'subcategory_id' => $i % 6 === 0 || $subcategory === null ? null : $subcategory->id,
-                    'uploaded_by' => $admin->id,
+                    'uploader' => $admin->id,
                     'status' => $status,
                 ]
             );
@@ -119,7 +111,12 @@ class ArchiveSeeder extends Seeder
                     'cabinet_id' => $rack->cabinet_id,
                     'rack_id' => $rack->id,
                     'slot_number' => $slotNumber,
-                    'label_code' => 'L'.$rack->cabinet->cabinet_number.'-R'.$rack->id.'-S'.$slotNumber,
+                    'label_code' => sprintf(
+                        'L%d-R%d-S%02d',
+                        $rack->cabinet_id,
+                        $rack->rack_number,
+                        $slotNumber
+                    ),
                     'notes' => 'Lokasi fisik arsip '.$title,
                 ]
             );
@@ -131,6 +128,43 @@ class ArchiveSeeder extends Seeder
                 ]
             );
         }
+
+        $this->syncRackUsage();
+    }
+
+    private function seedUsers(): Collection
+    {
+        $items = [
+            [
+                'username' => 'admin',
+                'name' => 'Admin 1',
+                'subject' => 'Administrasi',
+                'position' => 'Administrator',
+                'password' => 'password',
+                'role' => 'admin',
+            ],
+            [
+                'username' => 'guru_demo',
+                'name' => 'Guru Demo',
+                'subject' => 'Bahasa Indonesia',
+                'position' => 'Guru Mapel',
+                'password' => 'password',
+                'role' => 'guru',
+            ],
+        ];
+
+        return collect($items)->map(function (array $item) {
+            return User::query()->updateOrCreate(
+                ['username' => $item['username']],
+                [
+                    'name' => $item['name'],
+                    'subject' => $item['subject'],
+                    'position' => $item['position'],
+                    'password' => $item['password'],
+                    'role' => $item['role'],
+                ]
+            );
+        });
     }
 
     private function seedCategories(): Collection
@@ -174,6 +208,10 @@ class ArchiveSeeder extends Seeder
 
         foreach ($map as $categoryName => $names) {
             $category = $categories->firstWhere('name', $categoryName);
+
+            if (! $category) {
+                continue;
+            }
 
             foreach ($names as $name) {
                 Subcategory::query()->updateOrCreate(
@@ -233,9 +271,10 @@ class ArchiveSeeder extends Seeder
         ];
 
         foreach ($cabinetDefinitions as $cabinetDefinition) {
-            $cabinet = Cabinet::query()->firstOrNew(['name' => $cabinetDefinition['name']]);
-            $cabinet->cabinet_number = $cabinetDefinition['cabinet_number'];
-            $cabinet->save();
+            Cabinet::query()->updateOrCreate(
+                ['cabinet_number' => $cabinetDefinition['cabinet_number']],
+                ['name' => $cabinetDefinition['name']]
+            );
         }
 
         $cabinets = Cabinet::query()->orderBy('cabinet_number')->get();
@@ -246,7 +285,7 @@ class ArchiveSeeder extends Seeder
                 $rackAttributes = ['capacity' => 20];
 
                 if ($hasUsedCapacityColumn) {
-                    $rackAttributes['used_capacity'] = random_int(0, 20);
+                    $rackAttributes['used_capacity'] = 0;
                 }
 
                 Rack::query()->updateOrCreate(
@@ -291,5 +330,21 @@ class ArchiveSeeder extends Seeder
                 );
             }
         }
+    }
+
+    private function syncRackUsage(): void
+    {
+        if (! Schema::hasColumn('racks', 'used_capacity')) {
+            return;
+        }
+
+        Rack::query()
+            ->withCount('physicalLocations')
+            ->get()
+            ->each(function (Rack $rack): void {
+                $rack->update([
+                    'used_capacity' => $rack->physical_locations_count,
+                ]);
+            });
     }
 }
