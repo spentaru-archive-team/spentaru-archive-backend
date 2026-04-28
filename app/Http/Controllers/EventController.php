@@ -33,6 +33,7 @@ class EventController extends Controller
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
+            'user_id' => 'required|exists:users,id',
             'date' => 'required|date',
             'status' => ['required', Rule::in(['ongoing', 'done'])],
         ]);
@@ -65,6 +66,7 @@ class EventController extends Controller
 
         $validated = $request->validate([
             'title' => 'sometimes|required|string|max:255',
+            'user_id' => 'sometimes|required|exists:users,id',
             'description' => 'nullable|string',
             'date' => 'sometimes|required|date',
             'status' => ['sometimes', Rule::in(['ongoing', 'done'])],
