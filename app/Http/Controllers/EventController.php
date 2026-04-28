@@ -38,8 +38,6 @@ class EventController extends Controller
             'status' => ['required', Rule::in(['ongoing', 'done'])],
         ]);
 
-        $validated['user_id'] = $request->user()->id;
-
         $event = Event::create($validated);
 
         return response()->json([
