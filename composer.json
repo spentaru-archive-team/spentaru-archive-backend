@@ -9,6 +9,7 @@
         "php": "^8.3",
         "laravel/framework": "^13.0",
         "laravel/sanctum": "^4.0",
+        "laravel/scout": "^11.1",
         "laravel/tinker": "^3.0",
         "opcodesio/log-viewer": "^3.24",
         "predis/predis": "^3.4",
