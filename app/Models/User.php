@@ -9,12 +9,11 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use DateTimeInterface;
-use Laravel\Scout\Searchable;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasApiTokens, HasFactory, Notifiable, Searchable;
+    use HasApiTokens, HasFactory, Notifiable;
 
     /**
      * @var list<string>
@@ -50,26 +49,6 @@ class User extends Authenticatable
             'updated_at' => 'datetime',
         ];
     }
-
-    public function toSearchableArray(): array
-{
-    return [
-        'name' => $this->name,
-        'username' => $this->username,
-        'role' => $this->role,
-        'subject' => $this->subject,
-        'position' => $this->position,
-    ];
-}
-
-
-
-
-
-
-
-
-
 
     public function events(): HasMany
     {

@@ -1,6 +1,6 @@
 # spentaru-archive-backend
 
-Backend Laravel 13 untuk sistem arsip sekolah dengan auth Sanctum stateful berbasis session cookie, manajemen arsip, lokasi fisik arsip, master data, dashboard, AI gateway, workflow retensi arsip, dan pencarian user berbasis Laravel Scout.
+Backend Laravel 13 untuk sistem arsip sekolah dengan auth Sanctum stateful berbasis session cookie, manajemen arsip, lokasi fisik arsip, master data, dashboard, AI gateway, dan workflow retensi arsip.
 
 ## Stack
 
@@ -8,7 +8,6 @@ Backend Laravel 13 untuk sistem arsip sekolah dengan auth Sanctum stateful berba
 - Laravel 13
 - MySQL
 - Laravel Sanctum
-- Laravel Scout
 - Redis opsional untuk cache, queue, atau lock
 
 ## Fitur Utama
@@ -16,16 +15,14 @@ Backend Laravel 13 untuk sistem arsip sekolah dengan auth Sanctum stateful berba
 - Auth API berbasis session cookie Sanctum untuk SPA atau first-party frontend
 - CRUD arsip + upload file ke disk `public`
 - Auto-assign lokasi fisik arsip via `ArchiveStorageService`
-- CRUD rule penempatan arsip via `archive-storage-rules`
 - CRUD master data: event, kategori, subkategori, lemari, rak, user
-- Pencarian user admin via query `q` pada endpoint `GET /api/v1/users`
 - Dashboard ringkas untuk total arsip, kategori, subkategori, dan user
 - AI gateway untuk chat, OCR gambar, dan ekstraksi PDF native
 - Workflow retensi arsip: arsip tanpa lokasi, arsip siap pemusnahan, dan keputusan retensi
 
 ## Role
 
-- `admin`: CRUD master data, user, dan `archive-storage-rules`
+- `admin`: CRUD master data dan user
 - `guru`: read master data, CRUD archive, akses dashboard, akses AI gateway, update profil sendiri
 
 ## Menjalankan Project
@@ -37,12 +34,6 @@ php artisan key:generate
 php artisan migrate
 php artisan storage:link
 php artisan serve
-```
-
-Jika ingin fitur pencarian user berbasis Scout sinkron untuk driver non-`collection`, import index setelah migrate:
-
-```bash
-php artisan scout:import "App\\Models\\User"
 ```
 
 Base URL lokal:
@@ -73,13 +64,6 @@ Endpoint debug sementara juga ada di `api/v1/auth/devlogin`, `api/v1/auth/devme`
 - `composer test`
 - `./vendor/bin/pint`
 - `php artisan config:clear`
-
-## Catatan Search User
-
-- Dependency `laravel/scout` sudah terpasang.
-- Default `SCOUT_DRIVER` saat ini adalah `collection`, dengan konfigurasi di `config/scout.php`.
-- Model `User` sudah memakai trait `Searchable`.
-- Migration terbaru menambahkan fulltext index ke kolom `name`, `subject`, `position`, dan `username`.
 
 ## Dokumen
 
