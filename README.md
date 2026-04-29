@@ -18,7 +18,7 @@ Backend Laravel 13 untuk sistem arsip sekolah dengan auth Sanctum stateful berba
 - Auto-assign lokasi fisik arsip via `ArchiveStorageService`
 - CRUD rule penempatan arsip via `archive-storage-rules`
 - CRUD master data: event, kategori, subkategori, lemari, rak, user
-- Pencarian user admin via query `q` pada endpoint `GET /api/v1/users`
+- Pencarian user admin via query `q` dan filter role `role` pada endpoint `GET /api/v1/users`
 - Dashboard ringkas untuk total arsip, kategori, subkategori, dan user
 - AI gateway untuk chat, OCR gambar, dan ekstraksi PDF native
 - Workflow retensi arsip: arsip tanpa lokasi, arsip siap pemusnahan, dan keputusan retensi
@@ -79,6 +79,8 @@ Endpoint debug sementara juga ada di `api/v1/auth/devlogin`, `api/v1/auth/devme`
 - Dependency `laravel/scout` sudah terpasang.
 - Default `SCOUT_DRIVER` saat ini adalah `collection`, dengan konfigurasi di `config/scout.php`.
 - Model `User` sudah memakai trait `Searchable`.
+- Field searchable aktif untuk user: `name`, `username`, `subject`, dan `position`.
+- Endpoint list user juga mendukung filter exact `role` dan hasil diurutkan dari `id` terkecil.
 - Migration terbaru menambahkan fulltext index ke kolom `name`, `subject`, `position`, dan `username`.
 
 ## Dokumen

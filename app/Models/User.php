@@ -52,24 +52,14 @@ class User extends Authenticatable
     }
 
     public function toSearchableArray(): array
-{
-    return [
-        'name' => $this->name,
-        'username' => $this->username,
-        'role' => $this->role,
-        'subject' => $this->subject,
-        'position' => $this->position,
-    ];
-}
-
-
-
-
-
-
-
-
-
+    {
+        return [
+            'name' => $this->name,
+            'username' => $this->username,
+            'subject' => $this->subject,
+            'position' => $this->position,
+        ];
+    }
 
     public function events(): HasMany
     {

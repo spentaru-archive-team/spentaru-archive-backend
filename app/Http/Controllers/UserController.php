@@ -16,19 +16,25 @@ class UserController extends Controller
      */
     public function index(Request $request)
     {
-
         $q = $request->query('q');
+        $role = $request->query('role');
+        $search = User::search($q ?? '')
+            ->query(function ($query) use ($role) {
+                if ($role !== null && $role !== '') {
+                    $query->where('role', $role);
+                }
+            })
+            ->orderBy('id', 'asc');
 
-        if ($q !== null) {
-            $user = User::search($q)->paginate(10);
-            if (empty($user[0])) {
+        $user = $search->paginate(10)->appends($request->query());
+
+        if (($q !== null && $q !== '') || ($role !== null && $role !== '')) {
+            if ($user->isEmpty()) {
                 return response()->json([
                     'status' => 'error',
                     'message' => 'User tidak ditemukan',
                 ], 404);
             }
-        } else {
-            $user = User::paginate(10);
         }
 
         return response()->json([

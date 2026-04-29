@@ -86,7 +86,7 @@ http://localhost:8000/api/v1
 
 | Method | Endpoint | Auth | Keterangan |
 |---|---|---|---|
-| `GET` | `/users` | Admin | List user, mendukung query search `q` |
+| `GET` | `/users` | Admin | List user, mendukung query search `q`, filter role, dan urut `id` ascending |
 | `POST` | `/users` | Admin | Create user |
 | `GET` | `/users/{id}` | Ya | Detail user |
 | `PUT` | `/users/{id}` | Admin | Update user |
@@ -449,13 +449,17 @@ Query:
 | Key | Tipe | Default | Keterangan |
 |---|---|---|---|
 | `q` | `string` | - | cari user berdasarkan index Scout |
+| `role` | `string` | - | filter exact role, mis. `admin` atau `guru` |
 
 Perilaku:
 
 - Jika `q` tidak dikirim, endpoint mengembalikan pagination user biasa, 10 item per halaman.
-- Jika `q` dikirim, endpoint memakai `User::search($q)->paginate(10)`.
-- Field searchable aktif pada model user: `name`, `username`, `role`, `subject`, `position`.
-- Jika hasil pencarian kosong, endpoint mengembalikan `404` dengan message `User tidak ditemukan`.
+- Endpoint memakai `User::search($q ?? '')` dari Laravel Scout untuk query pencarian.
+- Jika `q` dikirim, endpoint mencari pada field `name`, `username`, `subject`, dan `position`.
+- Jika `role` dikirim, endpoint memfilter exact match pada kolom `role`.
+- `q` dan filter role bisa dipakai bersamaan.
+- Hasil list diurutkan dari `id` terkecil.
+- Jika hasil filter atau pencarian kosong, endpoint mengembalikan `404` dengan message `User tidak ditemukan`.
 
 ### Create user
 
