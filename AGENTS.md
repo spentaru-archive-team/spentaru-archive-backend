@@ -72,7 +72,10 @@ Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
 - Archive bisa punya `physical_location` dan `ocr_text`.
 - Archive auto-assign physical location via `ArchiveStorageService` saat create archive bila rule/rak tersedia.
 - Ada endpoint manual untuk CRUD physical location archive.
+- Archive punya workflow retensi: `retention_due_date`, `retention_status`, `retention_decided_at`, `retention_decided_by`, `retention_note`.
+- Ada endpoint arsip tanpa lokasi fisik, arsip siap pemusnahan, dan keputusan retensi arsip.
 - Ada AI gateway internal via `AiGatewayController` untuk health, chat, OCR gambar, dan ekstraksi PDF native.
+- Ada endpoint auth debug sementara `devlogin`, `devme`, `devlogout` di `routes/api.php`.
 - Global JSON exception handling ada di `bootstrap/app.php` untuk 401, 403, 405, 422, dan 429.
 
 ## Domain Map
@@ -90,6 +93,11 @@ storage domain
   cabinets
   racks
   archive_storage_rules
+
+retention domain
+  /archives/without-location
+  /archives/retention/ready
+  /archives/{id}/retention/decide
 
 ai gateway
   /ai/health

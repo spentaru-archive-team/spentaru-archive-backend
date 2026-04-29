@@ -9,21 +9,16 @@ http://localhost:8000/api/v1
 ## Konvensi Umum
 
 - Response JSON mengikuti pola `status`, `message`, lalu opsional `data`, `errors`, `trace_id`.
-- Auth API memakai Laravel Sanctum stateful berbasis session cookie.
-- Frontend SPA/first-party harus panggil `GET /sanctum/csrf-cookie` sebelum login.
-- Endpoint terproteksi mengandalkan cookie session + header CSRF untuk request stateful lintas origin.
-- Upload file arsip, OCR, dan PDF native memakai `multipart/form-data`.
-- Error global yang sudah ditangani konsisten:
-  - `401` unauthenticated
-  - `403` forbidden
-  - `405` method not allowed
-  - `422` validasi gagal
-  - `429` terlalu banyak request
+- Auth API aktif memakai Laravel Sanctum stateful berbasis session cookie.
+- Frontend SPA atau first-party perlu memanggil `GET /sanctum/csrf-cookie` sebelum `POST /api/v1/auth/login`.
+- Request terproteksi dikirim dengan cookie session dan header CSRF, bukan bearer token.
+- Upload file archive, OCR, dan PDF native memakai `multipart/form-data`.
+- Global error JSON yang sudah ditangani konsisten untuk `401`, `403`, `405`, `422`, dan `429`.
 
-## Role-Based Access
+## Role
 
-- `admin`: full access ke semua endpoint.
-- `guru`: read master data, full CRUD archive, akses dashboard, akses AI gateway, dan update profil sendiri.
+- `admin`: CRUD master data dan user.
+- `guru`: read master data, full CRUD archive, akses dashboard, akses AI gateway, update profil sendiri.
 
 ## Ringkasan Endpoint
 
@@ -34,6 +29,9 @@ http://localhost:8000/api/v1
 | `POST` | `/auth/login` | Tidak | Login, throttle `5 request/menit` |
 | `POST` | `/auth/logout` | Ya | Logout session aktif |
 | `GET` | `/auth/me` | Ya | Profil user aktif |
+| `POST` | `/auth/devlogin` | Tidak | Endpoint debug sementara berbasis `web` middleware |
+| `GET` | `/auth/devme` | Ya | Endpoint debug sementara |
+| `POST` | `/auth/devlogout` | Ya | Endpoint debug sementara |
 
 ### Archive
 
@@ -41,19 +39,17 @@ http://localhost:8000/api/v1
 |---|---|---|---|
 | `GET` | `/archives` | Ya | List archive, `all=true` untuk tanpa pagination |
 | `POST` | `/archives` | Ya | Create archive + upload file |
+| `GET` | `/archives/without-location` | Ya | List arsip yang belum punya lokasi fisik |
+| `GET` | `/archives/physical-locations` | Ya | List semua lokasi fisik arsip |
+| `GET` | `/archives/retention/ready` | Ya | List arsip dengan `retention_status=ready_for_destruction` |
 | `GET` | `/archives/{id}` | Ya | Detail archive |
 | `PUT` | `/archives/{id}` | Ya | Update archive, file opsional |
 | `DELETE` | `/archives/{id}` | Ya | Hapus archive |
-
-### Archive Physical Location
-
-| Method | Endpoint | Auth | Keterangan |
-|---|---|---|---|
-| `GET` | `/archives/physical-location` | Ya | List semua physical location |
-| `GET` | `/archives/{id}/physical-location` | Ya | Detail physical location per archive |
-| `POST` | `/archives/{id}/physical-location` | Ya | Buat physical location manual |
-| `PUT` | `/archives/{id}/physical-location` | Ya | Ubah physical location |
-| `DELETE` | `/archives/{id}/physical-location` | Ya | Hapus physical location |
+| `GET` | `/archives/{id}/physical-locations` | Ya | Detail lokasi fisik archive |
+| `POST` | `/archives/{id}/physical-locations` | Ya | Buat lokasi fisik manual |
+| `PUT` | `/archives/{id}/physical-locations` | Ya | Ubah lokasi fisik |
+| `DELETE` | `/archives/{id}/physical-locations` | Ya | Hapus lokasi fisik |
+| `PATCH` | `/archives/{id}/retention/decide` | Ya | Simpan keputusan retensi |
 
 ### Master Data
 
@@ -120,20 +116,11 @@ http://localhost:8000/api/v1
 POST /api/v1/auth/login
 ```
 
-Header:
-
-```http
-Accept: application/json
-Content-Type: application/json
-```
-
-Prasyarat untuk SPA/first-party frontend:
+Prasyarat:
 
 ```http
 GET /sanctum/csrf-cookie
 ```
-
-Request login dan request stateful berikutnya harus mengirim cookie hasil endpoint di atas. Jika frontend beda origin, aktifkan `withCredentials`/`credentials: "include"` dan kirim header CSRF sesuai mekanisme client yang dipakai.
 
 Body:
 
@@ -142,7 +129,7 @@ Body:
 | `username` | `string` | Ya | max `120` |
 | `password` | `string` | Ya | tidak boleh kosong |
 
-Contoh response sukses:
+Response sukses:
 
 ```json
 {
@@ -161,122 +148,18 @@ Contoh response sukses:
 ```
 
 Kemungkinan error:
-- `401 Unauthorized` bila kredensial salah
-- `422 Unprocessable Entity` bila body tidak lolos validasi
-- `429 Too Many Requests` bila melewati limit login
 
-## 2. Logout
+- `401` bila kredensial salah
+- `422` bila body tidak lolos validasi
+- `429` bila melewati limit login
 
-```http
-POST /api/v1/auth/logout
-```
-
-Header untuk frontend lintas origin:
-
-```http
-X-XSRF-TOKEN: <csrf-token>
-Cookie: XSRF-TOKEN=...; spentaru-archive-backend-session=...
-```
-
-Contoh response:
-
-```json
-{
-  "status": "success",
-  "message": "Logout sukses"
-}
-```
-
-## 3. Me
-
-```http
-GET /api/v1/auth/me
-```
-
-Contoh response:
-
-```json
-{
-  "status": "success",
-  "message": "Profil pengguna berhasil diambil",
-  "data": {
-    "id": 1,
-    "name": "Admin Sekolah",
-    "username": "admin",
-    "role": "admin",
-    "last_login_at": "2026-04-23T10:15:00.000000Z",
-    "created_at": "2026-04-11T16:50:44.000000Z",
-    "updated_at": "2026-04-23T10:15:00.000000Z"
-  }
-}
-```
-
-## 4. List Archive
-
-```http
-GET /api/v1/archives
-```
-
-Query yang didukung:
-
-| Key | Tipe | Default | Keterangan |
-|---|---|---|---|
-| `all` | `boolean` | `false` | Bila `true`, mengembalikan semua data tanpa pagination |
-
-Perilaku:
-- Default memakai pagination `10` item per halaman.
-- Mode paginasi memuat relasi: `event`, `category`, `subcategory`, `files`, `physicalLocation.cabinet`, `physicalLocation.rack`.
-- Mode paginasi menambahkan field SQL `row_num`.
-
-Contoh response ringkas:
-
-```json
-{
-  "status": "success",
-  "message": "sukses mengambil archive",
-  "data": {
-    "current_page": 1,
-    "data": [
-      {
-        "id": 1,
-        "row_num": 1,
-        "title": "Arsip Rapat",
-        "status": "uploaded"
-      }
-    ]
-  }
-}
-```
-
-## 5. Detail Archive
-
-```http
-GET /api/v1/archives/{id}
-```
-
-Relasi yang dimuat:
-- `event`
-- `category`
-- `subcategory`
-- `files`
-- `physicalLocation.cabinet`
-- `physicalLocation.rack`
-
-## 6. Create Archive
+## 2. Create Archive
 
 ```http
 POST /api/v1/archives
 ```
 
-Header:
-
-```http
-Accept: application/json
-Authorization: Bearer <token>
-Content-Type: multipart/form-data
-```
-
-Body:
+Body `multipart/form-data`:
 
 | Key | Tipe | Wajib | Aturan |
 |---|---|---|---|
@@ -289,39 +172,16 @@ Body:
 | `subcategory_id` | `integer` | Tidak | nullable, `exists:subcategories,id` |
 | `uploader` | `integer` | Tidak | nullable, `exists:users,id` |
 
-Perilaku implementasi:
-- File disimpan ke disk `public` pada path relatif `uploads/<slug>.<ext>`.
-- Row `archives` dibuat dengan status `uploaded`.
-- Metadata file disimpan di relasi `archive_files`.
-- Sistem mencoba auto-assign physical location melalui `ArchiveStorageService`.
-- Bila tidak ada rule/slot yang tersedia, archive tetap tersimpan, tetapi physical location bisa `null`.
+Perilaku:
 
-Contoh response ringkas:
+- File disimpan ke disk `public` pada path `uploads/<slug>.<ext>`.
+- Archive dibuat dengan `status=uploaded`.
+- `retention_due_date` otomatis diisi ke awal tahun arsip + 10 tahun.
+- `retention_status` awal adalah `active`.
+- Jika category sudah punya subcategory, maka `subcategory_id` wajib diisi.
+- Sistem mencoba auto-assign lokasi fisik melalui `ArchiveStorageService`.
 
-```json
-{
-  "status": "success",
-  "message": "sukses menyimpan archive",
-  "data": {
-    "id": 1,
-    "title": "Arsip Rapat",
-    "status": "uploaded",
-    "files": {
-      "file_name": "arsip_rapat_random_20260423101500000.pdf",
-      "file_type": "pdf",
-      "file_url": "/storage/uploads/arsip_rapat_random_20260423101500000.pdf"
-    },
-    "physical_location": {
-      "cabinet_id": 1,
-      "rack_id": 1,
-      "slot_number": 1,
-      "label_code": "L1-R1-S01"
-    }
-  }
-}
-```
-
-## 7. Update Archive
+## 3. Update Archive
 
 ```http
 PUT /api/v1/archives/{id}
@@ -329,59 +189,50 @@ PUT /api/v1/archives/{id}
 
 Body mendukung partial update.
 
-Field valid:
+Perilaku:
 
-| Key | Tipe | Keterangan |
-|---|---|---|
-| `title` | `string` | opsional |
-| `year` | `integer \| null` | opsional |
-| `notes` | `string \| null` | opsional |
-| `file` | `file` | opsional, tipe sama seperti create |
-| `event_id` | `integer \| null` | opsional |
-| `category_id` | `integer` | opsional |
-| `subcategory_id` | `integer \| null` | opsional |
-| `uploader` | `integer \| null` | opsional |
+- Jika file diganti, metadata file lama dihapus dan file fisik lama ikut dibersihkan setelah transaksi sukses.
+- Jika file baru diunggah, `status` dipaksa menjadi `uploaded`.
+- Endpoint ini tidak otomatis menghitung ulang lokasi fisik.
 
-Perilaku penting:
-- Jika `file` diganti, metadata file lama dihapus dan file fisik lama ikut dihapus setelah transaksi sukses.
-- Jika `file` baru diunggah, `status` dipaksa menjadi `uploaded`.
-- Endpoint ini tidak otomatis menghitung ulang physical location.
-
-## 8. Delete Archive
+## 4. Arsip Tanpa Lokasi
 
 ```http
-DELETE /api/v1/archives/{id}
+GET /api/v1/archives/without-location
 ```
 
-Perilaku:
-- Menghapus row archive beserta file fisik terkait.
-- Response tidak mengembalikan `data`.
+Mengembalikan semua archive yang belum punya relasi `physicalLocation`.
 
-## 9. Physical Location Archive
+## 5. Physical Location Archive
 
 ### List semua physical location
 
 ```http
-GET /api/v1/archives/physical-location
+GET /api/v1/archives/physical-locations
 ```
 
+Query:
+
+| Key | Tipe | Default | Keterangan |
+|---|---|---|---|
+| `all` | `boolean` | `false` | bila `true`, tanpa pagination |
+
 Relasi yang dimuat:
-- `archive`
+
+- `archive.files`
 - `cabinet`
 - `rack`
 
 ### Detail physical location per archive
 
 ```http
-GET /api/v1/archives/{id}/physical-location
+GET /api/v1/archives/{id}/physical-locations
 ```
-
-Jika archive belum punya physical location, mengembalikan `404`.
 
 ### Create physical location manual
 
 ```http
-POST /api/v1/archives/{id}/physical-location
+POST /api/v1/archives/{id}/physical-locations
 ```
 
 Body:
@@ -394,234 +245,63 @@ Body:
 | `notes_physical_location` | `string` | Tidak | nullable |
 
 Perilaku:
+
 - `label_code` dibentuk otomatis dengan format `L{cabinet_id}-R{rack_id}-S{slot_number}`.
 - Bila archive sudah punya physical location, endpoint mengembalikan `422`.
 
 ### Update physical location
 
 ```http
-PUT /api/v1/archives/{id}/physical-location
+PUT /api/v1/archives/{id}/physical-locations
 ```
 
-Body mendukung partial update untuk:
+Field partial update:
+
 - `cabinet_id`
 - `rack_id`
 - `slot_number`
 - `notes_physical_location`
 
-`label_code` dihitung ulang dari kombinasi akhir field.
-
 ### Delete physical location
 
 ```http
-DELETE /api/v1/archives/{id}/physical-location
+DELETE /api/v1/archives/{id}/physical-locations
 ```
 
-## 10. Event
+## 6. Retention
 
-Parameter list:
-
-| Key | Tipe | Default | Keterangan |
-|---|---|---|---|
-| `all` | `boolean` | `false` | tanpa pagination |
-| `per_page` | `integer` | `10` | jumlah item per halaman |
-
-Payload create/update:
-
-| Key | Tipe | Wajib create | Aturan |
-|---|---|---|---|
-| `title` | `string` | Ya | max `255` |
-| `description` | `string` | Tidak | nullable |
-| `date` | `date` | Ya | format tanggal valid |
-| `status` | `string` | Ya | `ongoing` / `done` |
-
-Catatan:
-- Saat create, `user_id` diisi dari user login.
-- Event tidak bisa dihapus bila masih punya archive.
-
-## 11. Category
-
-Parameter list:
-
-| Key | Tipe | Default | Keterangan |
-|---|---|---|---|
-| `all` | `boolean` | `false` | tanpa pagination |
-| `per_page` | `integer` | `10` | jumlah item per halaman |
-
-Payload create:
-
-| Key | Tipe | Wajib | Keterangan |
-|---|---|---|---|
-| `name` | `string` | Ya | unique |
-| `description` | `string` | Tidak | nullable |
-| `subcategories` | `array` | Tidak | buat subkategori sekaligus |
-| `subcategories.*.name` | `string` | Kondisional | required jika `subcategories` ada |
-
-Catatan:
-- Detail category memuat `subcategories` dan `archives`.
-- Category tidak bisa dihapus bila masih punya archive.
-
-## 12. Subcategory
-
-Parameter list:
-
-| Key | Tipe | Default | Keterangan |
-|---|---|---|---|
-| `all` | `boolean` | `false` | tanpa pagination |
-| `per_page` | `integer` | `10` | jumlah item per halaman |
-| `category_id` | `integer` | - | filter subkategori berdasarkan kategori |
-
-Payload create/update:
-
-| Key | Tipe | Wajib create | Keterangan |
-|---|---|---|---|
-| `category_id` | `integer` | Ya | `exists:archive_categories,id` |
-| `name` | `string` | Ya | unique per kategori |
-
-Catatan:
-- Detail subcategory memuat `category` dan `archives`.
-- Subcategory tidak bisa dihapus bila masih punya archive.
-
-## 13. Cabinet
-
-Payload create/update:
-
-| Key | Tipe | Wajib create | Keterangan |
-|---|---|---|---|
-| `name` | `string` | Ya | unique |
-
-Catatan:
-- List cabinet selalu memuat relasi `racks`.
-- Detail cabinet memuat `racks` yang diurutkan berdasarkan `rack_number`.
-- Cabinet tidak bisa dihapus bila salah satu rack masih punya physical location.
-- Saat delete cabinet sukses, semua rack di bawah cabinet ikut dihapus.
-
-## 14. Rack
-
-Parameter list:
-
-| Key | Tipe | Default | Keterangan |
-|---|---|---|---|
-| `per_page` | `integer` | `10` | jumlah item per halaman |
-| `cabinet_id` | `integer` | - | filter rack berdasarkan lemari |
-
-Payload create/update:
-
-| Key | Tipe | Wajib create | Keterangan |
-|---|---|---|---|
-| `cabinet_id` | `integer` | Ya | `exists:cabinets,id` |
-| `rack_number` | `integer` | Ya | min `1`, unique per cabinet |
-| `capacity` | `integer` | Ya | min `1`, max `100` |
-
-Catatan:
-- Detail rack memuat `cabinet` dan `physicalLocations`.
-- Rack tidak bisa dihapus bila masih dipakai physical location.
-
-## 15. User
-
-### List User
-
-Query:
-
-| Key | Tipe | Default | Keterangan |
-|---|---|---|---|
-| `all` | `boolean` | `false` | tanpa pagination |
-
-### Create User
+### Arsip siap pemusnahan
 
 ```http
-POST /api/v1/users
+GET /api/v1/archives/retention/ready
+```
+
+Mengembalikan archive dengan `retention_status=ready_for_destruction` beserta relasi `category`, `subcategory`, dan `files`.
+
+### Simpan keputusan retensi
+
+```http
+PATCH /api/v1/archives/{id}/retention/decide
 ```
 
 Body:
 
 | Key | Tipe | Wajib | Aturan |
 |---|---|---|---|
-| `name` | `string` | Ya | max `200` |
-| `subject` | `string` | Ya | max `200` |
-| `position` | `string` | Ya | max `200` |
-| `username` | `string` | Ya | max `120` |
-| `password` | `string` | Ya | min `8`, huruf besar, huruf kecil, angka |
-| `role` | `string` | Ya | `guru` / `admin` |
+| `retention_status` | `string` | Ya | `destroyed`, `retained`, `active` |
+| `retention_note` | `string` | Tidak | nullable |
+| `retention_due_date` | `date` | Tidak | nullable |
 
-### Update User
+Perilaku:
 
-```http
-PUT /api/v1/users/{id}
-```
+- `retention_decided_at` diisi `now()`.
+- `retention_decided_by` diisi user login.
+- Jika `retention_status=destroyed`, file fisik arsip di disk `public` dihapus dan row `archive_files` ikut dihapus.
+- Jika `retention_status=active`, `retention_due_date` boleh diperbarui dari payload.
 
-Body valid sama seperti create, tetapi `password` boleh `null`.
+## 7. AI Gateway
 
-### Reset Password
-
-```http
-PUT /api/v1/users/{id}/reset-password
-```
-
-Body:
-
-| Key | Tipe | Wajib | Aturan |
-|---|---|---|---|
-| `password` | `string` | Tidak | nullable, min `8`, huruf besar, huruf kecil, angka |
-
-### Update Profil Sendiri
-
-```http
-PUT /api/v1/users/me
-```
-
-Body:
-
-| Key | Tipe | Wajib | Aturan |
-|---|---|---|---|
-| `name` | `string` | Tidak | max `200` |
-| `username` | `string` | Tidak | unique kecuali user aktif |
-| `password` | `string` | Tidak | min `8`, huruf besar, huruf kecil, angka |
-
-## 16. Dashboard
-
-```http
-GET /api/v1/dashboard
-```
-
-Contoh response:
-
-```json
-{
-  "status": "success",
-  "message": "sukses mengambil jumlah arsip, user, kategori, dan subkategori",
-  "data": {
-    "archive_total": 120,
-    "archive_category_total": 8,
-    "archive_subcategory_total": 21,
-    "user_total": 15
-  }
-}
-```
-
-## 17. AI Gateway
-
-Semua endpoint AI gateway meneruskan atau menghasilkan `trace_id` dan juga mengirim header `X-Trace-Id`.
-
-### Health
-
-```http
-GET /api/v1/ai/health
-```
-
-Response sukses memakai:
-
-```json
-{
-  "status": "success",
-  "message": "sukses mengambil status AI service",
-  "data": {},
-  "trace_id": "uuid-or-upstream-trace-id"
-}
-```
-
-Jika upstream tidak dapat dihubungi:
-- `504 Gateway Timeout`
+Semua endpoint AI gateway memakai auth Sanctum dan dapat meneruskan `trace_id` atau header `X-Trace-Id`.
 
 ### Chat Ask
 
@@ -629,21 +309,12 @@ Jika upstream tidak dapat dihubungi:
 POST /api/v1/ai/chat/ask
 ```
 
-Header:
-
-```http
-Accept: application/json
-Authorization: Bearer <token>
-Content-Type: application/json
-X-Trace-Id: <optional-custom-trace-id>
-```
-
 Body:
 
 | Key | Tipe | Wajib | Keterangan |
 |---|---|---|---|
 | `message` | `string` | Ya | prompt user |
-| `context` | `mixed` | Tidak | context tambahan, diteruskan apa adanya |
+| `context` | `mixed` | Tidak | diteruskan apa adanya |
 | `use_search` | `boolean` | Tidak | default `false` |
 
 ### OCR Extract
@@ -669,17 +340,3 @@ Body:
 | Key | Tipe | Wajib | Aturan |
 |---|---|---|---|
 | `file` | `file` | Ya | `pdf` |
-
-Perilaku error AI gateway:
-- Jika upstream mengembalikan error `4xx`, status akan diteruskan.
-- Jika upstream mengembalikan status non-`4xx` yang gagal, API ini mengubahnya menjadi `502`.
-- Format error:
-
-```json
-{
-  "status": "error",
-  "message": "AI service gagal memproses request",
-  "errors": null,
-  "trace_id": "uuid-or-upstream-trace-id"
-}
-```

@@ -1,6 +1,6 @@
 # spentaru-archive-backend
 
-Backend Laravel 13 untuk sistem arsip sekolah dengan auth Sanctum stateless, manajemen arsip, lokasi fisik arsip, master data, dashboard, dan AI gateway.
+Backend Laravel 13 untuk sistem arsip sekolah dengan auth Sanctum stateful berbasis session cookie, manajemen arsip, lokasi fisik arsip, master data, dashboard, AI gateway, dan workflow retensi arsip.
 
 ## Stack
 
@@ -8,21 +8,22 @@ Backend Laravel 13 untuk sistem arsip sekolah dengan auth Sanctum stateless, man
 - Laravel 13
 - MySQL
 - Laravel Sanctum
-- Redis opsional untuk cache/queue/lock
+- Redis opsional untuk cache, queue, atau lock
 
 ## Fitur Utama
 
-- Auth API berbasis bearer token Sanctum
+- Auth API berbasis session cookie Sanctum untuk SPA atau first-party frontend
 - CRUD arsip + upload file ke disk `public`
 - Auto-assign lokasi fisik arsip via `ArchiveStorageService`
 - CRUD master data: event, kategori, subkategori, lemari, rak, user
-- Endpoint dashboard ringkas
-- Proxy AI gateway untuk chat, OCR gambar, dan ekstraksi PDF native
+- Dashboard ringkas untuk total arsip, kategori, subkategori, dan user
+- AI gateway untuk chat, OCR gambar, dan ekstraksi PDF native
+- Workflow retensi arsip: arsip tanpa lokasi, arsip siap pemusnahan, dan keputusan retensi
 
 ## Role
 
-- `admin`: CRUD semua master data dan user
-- `guru`: read master data, CRUD archive, update profil sendiri
+- `admin`: CRUD master data dan user
+- `guru`: read master data, CRUD archive, akses dashboard, akses AI gateway, update profil sendiri
 
 ## Menjalankan Project
 
@@ -46,6 +47,16 @@ Base URL API:
 ```text
 http://localhost:8000/api/v1
 ```
+
+## Auth Flow
+
+Untuk frontend SPA atau first-party:
+
+1. Panggil `GET /sanctum/csrf-cookie`
+2. Login ke `POST /api/v1/auth/login`
+3. Kirim cookie session + header CSRF untuk request terproteksi berikutnya
+
+Endpoint debug sementara juga ada di `api/v1/auth/devlogin`, `api/v1/auth/devme`, dan `api/v1/auth/devlogout`.
 
 ## Command Penting
 

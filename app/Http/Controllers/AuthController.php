@@ -23,7 +23,10 @@ class AuthController extends Controller
             ], 401);
         }
 
-        $request->session()->regenerate();
+        try {
+            $request->session()->regenerate();
+        } catch (\RuntimeException $e) {
+        }
 
         $user = Auth::user();
         $user->last_login_at = now();

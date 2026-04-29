@@ -19,6 +19,11 @@ class Archive extends Model
         'category_id',
         'subcategory_id',
         'uploader',
+        'retention_due_date',
+        'retention_status',
+        'retention_decided_at',
+        'retention_decided_by',
+        'retention_note',
         'status',
     ];
 
@@ -27,6 +32,8 @@ class Archive extends Model
         return [
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
+            'retention_due_date' => 'date',
+            'retention_decided_at' => 'datetime',
         ];
     }
 
@@ -65,4 +72,9 @@ class Archive extends Model
         return $this->hasOne(OcrText::class);
     }
 
+
+    public function retentionDecidedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'retention_decided_by');
+    }
 }
