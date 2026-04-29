@@ -43,13 +43,6 @@ class ArchiveController extends Controller
         return Str::startsWith($fileUrl, '/storage/') ? Str::after($fileUrl, '/storage/') : ltrim($fileUrl, '/');
     }
 
-
-
-
-
-
-
-
     public function archivesWithoutLocation()
     {
         $archives = Archive::doesntHave('physicalLocation')->get();
@@ -60,6 +53,10 @@ class ArchiveController extends Controller
             'data' => $archives,
         ]);
     }
+
+
+
+    
 
     /**
      * Display a listing of the resource.

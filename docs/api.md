@@ -17,7 +17,7 @@ http://localhost:8000/api/v1
 
 ## Role
 
-- `admin`: CRUD master data dan user.
+- `admin`: CRUD master data, user, dan `archive-storage-rules`.
 - `guru`: read master data, full CRUD archive, akses dashboard, akses AI gateway, update profil sendiri.
 
 ## Ringkasan Endpoint
@@ -92,6 +92,16 @@ http://localhost:8000/api/v1
 | `DELETE` | `/users/{id}` | Admin | Hapus user |
 | `PUT` | `/users/{id}/reset-password` | Admin | Reset password user |
 | `PUT` | `/users/me` | Ya | Update profil sendiri |
+
+### Archive Storage Rules
+
+| Method | Endpoint | Auth | Keterangan |
+|---|---|---|---|
+| `GET` | `/archive-storage-rules` | Admin | List rule penyimpanan arsip dengan relasi `category`, `subcategory`, `cabinet` |
+| `POST` | `/archive-storage-rules` | Admin | Create rule penyimpanan arsip |
+| `GET` | `/archive-storage-rules/{id}` | Admin | Detail 1 rule penyimpanan arsip |
+| `PATCH` | `/archive-storage-rules/{id}` | Admin | Update sebagian rule penyimpanan arsip |
+| `DELETE` | `/archive-storage-rules/{id}` | Admin | Hapus rule penyimpanan arsip |
 
 ### Dashboard
 
@@ -340,3 +350,110 @@ Body:
 | Key | Tipe | Wajib | Aturan |
 |---|---|---|---|
 | `file` | `file` | Ya | `pdf` |
+
+## 8. Archive Storage Rules
+
+Semua endpoint `archive-storage-rules` memakai middleware `auth:sanctum` dan `admin`.
+
+### List rule penyimpanan arsip
+
+```http
+GET /api/v1/archive-storage-rules
+```
+
+Perilaku:
+
+- Response `data` berupa pagination 10 item per halaman.
+- Setiap item memuat relasi `category`, `subcategory`, dan `cabinet`.
+
+### Create rule penyimpanan arsip
+
+```http
+POST /api/v1/archive-storage-rules
+```
+
+Body:
+
+| Key | Tipe | Wajib | Aturan |
+|---|---|---|---|
+| `category_id` | `integer` | Ya | `exists:archive_categories,id` |
+| `subcategory_id` | `integer` | Kondisional | `nullable`, `exists:subcategories,id`, harus milik `category_id` yang dipilih |
+| `cabinet_id` | `integer` | Ya | `exists:cabinets,id` |
+| `priority` | `integer` | Ya | unik di `archive_storage_rules` |
+
+Aturan `subcategory_id`:
+
+- Jika kategori punya `has_subcategory=true`, `subcategory_id` wajib diisi.
+- Jika kategori punya `has_subcategory=false`, `subcategory_id` harus kosong.
+
+Perilaku:
+
+- Response `201` mengembalikan row `archive_storage_rules` yang baru dibuat pada field `data`.
+
+### Detail rule penyimpanan arsip
+
+```http
+GET /api/v1/archive-storage-rules/{id}
+```
+
+Perilaku:
+
+- Response memuat relasi `category`, `subcategory`, dan `cabinet`.
+
+### Update rule penyimpanan arsip
+
+```http
+PATCH /api/v1/archive-storage-rules/{id}
+```
+
+Body mendukung partial update.
+
+Field yang bisa diubah:
+
+- `category_id`
+- `subcategory_id`
+- `cabinet_id`
+- `priority`
+
+Aturan aktif:
+
+- `priority` tetap unik, dengan pengecualian untuk row yang sedang di-update.
+- Jika `category_id` dikirim, aturan `subcategory_id` mengikuti `has_subcategory` kategori tersebut.
+- Jika `subcategory_id` dikirim, nilainya harus berasal dari kategori yang sama.
+
+Perilaku:
+
+- Response `200` mengembalikan row hasil update pada field `data`.
+
+### Hapus rule penyimpanan arsip
+
+```http
+DELETE /api/v1/archive-storage-rules/{id}
+```
+
+Perilaku:
+
+- Response hanya mengembalikan `status` dan `message`.
+
+## 9. User Notes
+
+### Create user
+
+```http
+POST /api/v1/users
+```
+
+Body:
+
+| Key | Tipe | Wajib | Aturan |
+|---|---|---|---|
+| `name` | `string` | Ya | max `200` |
+| `subject` | `string` | Ya | max `200` |
+| `position` | `string` | Ya | max `200` |
+| `username` | `string` | Ya | max `120` |
+| `password` | `string` | Ya | min `8`, huruf besar, huruf kecil, angka |
+| `role` | `string` | Ya | `guru` atau `admin` |
+
+Perilaku:
+
+- Response `201` pada `data` berisi model user yang baru dibuat, bukan payload request mentah.

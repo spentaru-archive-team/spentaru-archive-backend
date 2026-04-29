@@ -66,11 +66,12 @@ Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
 - Frontend perlu ambil CSRF cookie via `GET /sanctum/csrf-cookie` sebelum `POST /api/v1/auth/login`.
 - User roles: `admin` dan `guru`.
 - RBAC aktif:
-  - `admin` bisa CRUD master data dan user.
+  - `admin` bisa CRUD master data, user, dan archive storage rule.
   - `guru` bisa read master data, full CRUD archive, akses dashboard, AI gateway, dan update profil sendiri.
 - Upload file archive memakai `multipart/form-data`, file fisik ke disk `public`, metadata ke tabel `archive_files`.
 - Archive bisa punya `physical_location` dan `ocr_text`.
 - Archive auto-assign physical location via `ArchiveStorageService` saat create archive bila rule/rak tersedia.
+- Ada endpoint admin untuk CRUD `archive_storage_rules` sebagai rule penempatan arsip ke lemari.
 - Ada endpoint manual untuk CRUD physical location archive.
 - Archive punya workflow retensi: `retention_due_date`, `retention_status`, `retention_decided_at`, `retention_decided_by`, `retention_note`.
 - Ada endpoint arsip tanpa lokasi fisik, arsip siap pemusnahan, dan keputusan retensi arsip.
@@ -93,6 +94,7 @@ storage domain
   cabinets
   racks
   archive_storage_rules
+  /archive-storage-rules
 
 retention domain
   /archives/without-location
@@ -149,11 +151,20 @@ app/Http/Controllers/UserController.php
 app/Http/Controllers/DashboardController.php
   summary total archive, kategori, subkategori, user
 
+app/Http/Controllers/ArchiveStorageRuleController.php
+  CRUD archive storage rule (admin-only)
+
 app/Http/Controllers/AiGatewayController.php
   proxy AI service + trace id handling
 
 app/Http/Requests/
   validasi request archive, physical location, user, profile, dan AI gateway
+
+app/Http/Requests/ArchiveStorageRuleControllerStoreRequest.php
+  validasi create archive storage rule
+
+app/Http/Requests/ArchiveStorageRuleControllerUpdateRequest.php
+  validasi update archive storage rule
 
 app/Services/ArchiveStorageService.php
   cari slot available + assign label_code

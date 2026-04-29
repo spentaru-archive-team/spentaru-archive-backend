@@ -35,12 +35,12 @@ class UserController extends Controller
     public function store(StoreUserRequest $request)
     {
         $hashed_password = bcrypt($request->password);
-        User::create($request->safe()->except('password') + ['password' => $hashed_password]);
+        $data = User::create($request->safe()->except('password') + ['password' => $hashed_password]);
 
         return response()->json([
             'status' => 'success',
             'message' => 'sukses membuat user',
-            'data' => $request->safe()->except('password'),
+            'data' => $data,
         ], 201);
     }
 

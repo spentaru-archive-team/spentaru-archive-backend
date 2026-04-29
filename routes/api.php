@@ -3,6 +3,7 @@
 use App\Http\Controllers\AiGatewayController;
 use App\Http\Controllers\ArchiveController;
 use App\Http\Controllers\ArchivePhysicalLocationController;
+use App\Http\Controllers\ArchiveStorageRuleController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CabinetController;
 use App\Http\Controllers\CategoryController;
@@ -11,6 +12,7 @@ use App\Http\Controllers\EventController;
 use App\Http\Controllers\RackController;
 use App\Http\Controllers\SubcategoryController;
 use App\Http\Controllers\UserController;
+use App\Models\ArchiveStorageRule;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -92,13 +94,15 @@ Route::prefix('v1')->group(function () {
             Route::get('/retention/ready', [ArchiveController::class, 'readyForDestruction']);
             Route::patch('/{id}/retention/decide', [ArchiveController::class, 'decideRetention']);
 
+
+            
         });
     });
 
     Route::prefix('events')->middleware('auth:sanctum')->group(function () {
         Route::get('/', [EventController::class, 'index']);
         Route::get('/{id}', [EventController::class, 'show']);
-
+        
         Route::middleware(['auth:sanctum', 'admin'])->group(function () {
             Route::post('/', [EventController::class, 'store']);
             Route::put('/{id}', [EventController::class, 'update']);
@@ -109,7 +113,7 @@ Route::prefix('v1')->group(function () {
     Route::prefix('categories')->middleware('auth:sanctum')->group(function () {
         Route::get('/', [CategoryController::class, 'index']);
         Route::get('/{id}', [CategoryController::class, 'show']);
-
+        
         Route::middleware(['auth:sanctum', 'admin'])->group(function () {
             Route::post('/', [CategoryController::class, 'store']);
             Route::put('/{id}', [CategoryController::class, 'update']);
@@ -126,7 +130,7 @@ Route::prefix('v1')->group(function () {
             Route::delete('/{id}', [SubcategoryController::class, 'destroy']);
         });
     });
-
+    
     Route::prefix('cabinets')->middleware('auth:sanctum')->group(function () {
         Route::get('/', [CabinetController::class, 'index']);
         Route::get('/{id}', [CabinetController::class, 'show']);
@@ -136,18 +140,18 @@ Route::prefix('v1')->group(function () {
             Route::delete('/{id}', [CabinetController::class, 'destroy']);
         });
     });
-
+    
     Route::prefix('racks')->middleware('auth:sanctum')->group(function () {
         Route::get('/', [RackController::class, 'index']);
         Route::get('/{id}', [RackController::class, 'show']);
-
+        
         Route::middleware(['auth:sanctum', 'admin'])->group(function () {
             Route::post('/', [RackController::class, 'store']);
             Route::put('/{id}', [RackController::class, 'update']);
             Route::delete('/{id}', [RackController::class, 'destroy']);
         });
     });
-
+    
     Route::prefix('users')->group(function () {
         Route::middleware('auth:sanctum')->group(function () {
             Route::get('/{id}', [UserController::class, 'show']);
@@ -172,6 +176,17 @@ Route::prefix('v1')->group(function () {
 
     Route::prefix('dashboard')->middleware('auth:sanctum')->group(function () {
         Route::get('/', [DashboardController::class, 'index']);
+    });
+
+
+    Route::middleware(['admin','auth:sanctum'])->group(function() {
+        Route::prefix('archive-storage-rules')->group(function() {
+            Route::get('/', [ArchiveStorageRuleController::class, 'index']);
+            Route::post('/',[ArchiveStorageRuleController::class, 'store'] );
+            Route::get('/{id}',[ArchiveStorageRuleController::class, 'show'] );
+            Route::patch('/{id}', [ArchiveStorageRuleController::class, 'update']);
+            Route::delete('/{id}', [ArchiveStorageRuleController::class, 'destroy']);
+        });
     });
 });
 // });
