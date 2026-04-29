@@ -69,6 +69,8 @@ Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
   - `admin` bisa CRUD master data, user, dan archive storage rule.
   - `guru` bisa read master data, full CRUD archive, akses dashboard, AI gateway, dan update profil sendiri.
 - Upload file archive memakai `multipart/form-data`, file fisik ke disk `public`, metadata ke tabel `archive_files`.
+- User search admin memakai Laravel Scout melalui query `q` pada endpoint list user.
+- Default konfigurasi Scout saat ini memakai driver `collection` dari `config/scout.php`.
 - Archive bisa punya `physical_location` dan `ocr_text`.
 - Archive auto-assign physical location via `ArchiveStorageService` saat create archive bila rule/rak tersedia.
 - Ada endpoint admin untuk CRUD `archive_storage_rules` sebagai rule penempatan arsip ke lemari.
@@ -146,7 +148,7 @@ app/Http/Controllers/RackController.php
   CRUD rack (admin-only write)
 
 app/Http/Controllers/UserController.php
-  CRUD user (admin-only) + self-update profile + reset password
+  CRUD user (admin-only) + self-update profile + reset password + search user by query
 
 app/Http/Controllers/DashboardController.php
   summary total archive, kategori, subkategori, user
@@ -171,6 +173,12 @@ app/Services/ArchiveStorageService.php
 
 app/Services/AiGatewayService.php
   HTTP client ke service AI upstream
+
+app/Models/User.php
+  auth user + searchable index untuk Scout
+
+config/scout.php
+  konfigurasi driver search user
 
 bootstrap/app.php
   exception handling JSON global + auth/admin middleware alias

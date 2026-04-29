@@ -16,15 +16,24 @@ class UserController extends Controller
      */
     public function index(Request $request)
     {
-        if ($request->boolean('all')) {
-            $user = User::all();
+
+        $q = $request->query('q');
+
+        if ($q !== null) {
+            $user = User::search($q)->paginate(10);
+            if (empty($user[0])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User tidak ditemukan',
+                ], 404);
+            }
         } else {
             $user = User::paginate(10);
         }
 
         return response()->json([
             'status' => 'success',
-            'message' => 'sukses menampilkan semua data user',
+            'message' => 'sukses menampilkan data user',
             'data' => $user,
         ], 200);
     }
@@ -53,7 +62,7 @@ class UserController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => 'sukses menampilkan data user dengan id ' . $id,
+            'message' => 'sukses menampilkan data user dengan id '.$id,
             'data' => $user,
         ], 200);
     }
@@ -90,7 +99,7 @@ class UserController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => 'sukses menghapus user ' . $username,
+            'message' => 'sukses menghapus user '.$username,
         ]);
     }
 
@@ -108,7 +117,7 @@ class UserController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Sukses mengubah password ' . $username,
+            'message' => 'Sukses mengubah password '.$username,
         ], 200);
     }
 

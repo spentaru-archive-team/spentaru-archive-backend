@@ -10,6 +10,7 @@ http://localhost:8000/api/v1
 
 - Response JSON mengikuti pola `status`, `message`, lalu opsional `data`, `errors`, `trace_id`.
 - Auth API aktif memakai Laravel Sanctum stateful berbasis session cookie.
+- Pencarian user memakai Laravel Scout; konfigurasi default repo saat ini memakai driver `collection`.
 - Frontend SPA atau first-party perlu memanggil `GET /sanctum/csrf-cookie` sebelum `POST /api/v1/auth/login`.
 - Request terproteksi dikirim dengan cookie session dan header CSRF, bukan bearer token.
 - Upload file archive, OCR, dan PDF native memakai `multipart/form-data`.
@@ -85,7 +86,7 @@ http://localhost:8000/api/v1
 
 | Method | Endpoint | Auth | Keterangan |
 |---|---|---|---|
-| `GET` | `/users` | Admin | List user |
+| `GET` | `/users` | Admin | List user, mendukung query search `q` |
 | `POST` | `/users` | Admin | Create user |
 | `GET` | `/users/{id}` | Ya | Detail user |
 | `PUT` | `/users/{id}` | Admin | Update user |
@@ -436,6 +437,25 @@ Perilaku:
 - Response hanya mengembalikan `status` dan `message`.
 
 ## 9. User Notes
+
+### List user
+
+```http
+GET /api/v1/users
+```
+
+Query:
+
+| Key | Tipe | Default | Keterangan |
+|---|---|---|---|
+| `q` | `string` | - | cari user berdasarkan index Scout |
+
+Perilaku:
+
+- Jika `q` tidak dikirim, endpoint mengembalikan pagination user biasa, 10 item per halaman.
+- Jika `q` dikirim, endpoint memakai `User::search($q)->paginate(10)`.
+- Field searchable aktif pada model user: `name`, `username`, `role`, `subject`, `position`.
+- Jika hasil pencarian kosong, endpoint mengembalikan `404` dengan message `User tidak ditemukan`.
 
 ### Create user
 
