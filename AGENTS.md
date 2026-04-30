@@ -73,6 +73,7 @@ Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
 - Endpoint list `archives`, `events`, dan `archives/physical-locations` juga mendukung filter dan sort dinamis via query string.
 - Default konfigurasi Scout saat ini memakai driver `collection` dari `config/scout.php`.
 - Archive bisa punya `physical_location` dan `ocr_text`.
+- Event punya `softfile_status` (`uploaded` / `pending_upload`) yang disinkronkan dari keberadaan `archive_files` pada archive terkait.
 - Archive auto-assign physical location via `ArchiveStorageService` saat create archive bila rule/rak tersedia.
 - Ada endpoint admin untuk CRUD `archive_storage_rules` sebagai rule penempatan arsip ke lemari.
 - Ada endpoint manual untuk CRUD physical location archive.

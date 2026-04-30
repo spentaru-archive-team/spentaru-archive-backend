@@ -237,7 +237,6 @@ Catatan:
 - `notes`
 - `category_id`
 - `subcategory_id`
-- `status`
 - `retention_due_date`
 - `retention_status`
 - `retention_decided_at`
@@ -308,7 +307,7 @@ Contoh bentuk operator array:
 
 ```text
 filters[year][$between][0]=2020&filters[year][$between][1]=2024
-filters[status][$in][0]=uploaded&filters[status][$in][1]=pending_upload
+filters[retention_status][$in][0]=active&filters[retention_status][$in][1]=retained
 filters[$or][0][title][$contains]=rapor&filters[$or][1][notes][$contains]=rapat
 ```
 
@@ -321,7 +320,6 @@ filters[$or][0][title][$contains]=rapor&filters[$or][1][notes][$contains]=rapat
 - `notes`
 - `category_id`
 - `subcategory_id`
-- `status`
 - `retention_due_date`
 - `retention_status`
 - `retention_decided_at`
@@ -371,7 +369,6 @@ Body `multipart/form-data`:
 Perilaku:
 
 - File disimpan ke disk `public` pada path `uploads/<slug>.<ext>`.
-- Archive dibuat dengan `status=uploaded`.
 - `retention_due_date` otomatis diisi ke awal tahun arsip + 10 tahun.
 - `retention_status` awal adalah `active`.
 - Jika category sudah punya subcategory, maka `subcategory_id` wajib diisi.
@@ -388,7 +385,6 @@ Body mendukung partial update.
 Perilaku:
 
 - Jika file diganti, metadata file lama dihapus dan file fisik lama ikut dibersihkan setelah transaksi sukses.
-- Jika file baru diunggah, `status` dipaksa menjadi `uploaded`.
 - Endpoint ini tidak otomatis menghitung ulang lokasi fisik.
 
 ## 5. Arsip Tanpa Lokasi
@@ -467,7 +463,7 @@ Semua kolom physical location yang bisa di-sort langsung:
 
 Sort relasi 1 hop yang tersedia:
 
-- `archive.{id,event_id,title,year,notes,category_id,subcategory_id,status,retention_due_date,retention_status,retention_decided_at,retention_decided_by,retention_note,uploader,created_at,updated_at}`
+- `archive.{id,event_id,title,year,notes,category_id,subcategory_id,retention_due_date,retention_status,retention_decided_at,retention_decided_by,retention_note,uploader,created_at,updated_at}`
 - `cabinet.{id,cabinet_number,name,created_at,updated_at}`
 - `rack.{id,cabinet_id,rack_number,capacity,used_capacity,created_at,updated_at}`
 
@@ -653,6 +649,7 @@ Semua kolom event yang bisa di-sort langsung:
 - `description`
 - `date`
 - `status`
+- `softfile_status`
 - `created_at`
 - `updated_at`
 - Versi qualified juga diterima, mis. `events.title:asc`.
@@ -660,7 +657,7 @@ Semua kolom event yang bisa di-sort langsung:
 Sort relasi 1 hop yang tersedia:
 
 - `user.{id,name,subject,position,username,password,role,last_login_at,created_at,updated_at}`
-- `archives.{id,event_id,title,year,notes,category_id,subcategory_id,status,retention_due_date,retention_status,retention_decided_at,retention_decided_by,retention_note,uploader,created_at,updated_at}`
+- `archives.{id,event_id,title,year,notes,category_id,subcategory_id,retention_due_date,retention_status,retention_decided_at,retention_decided_by,retention_note,uploader,created_at,updated_at}`
 
 Contoh:
 
@@ -698,6 +695,7 @@ Semua field event yang benar-benar bisa di-filter langsung saat ini:
 - `description`
 - `date`
 - `status`
+- `softfile_status`
 - `created_at`
 - `updated_at`
 - Versi qualified juga diterima, mis. `filters[events.title][$contains]=rapat`.
@@ -708,6 +706,7 @@ Contoh:
 /api/v1/events?filters[title][$contains]=rapat
 /api/v1/events?filters[date][$between][0]=2026-04-01&filters[date][$between][1]=2026-04-30
 /api/v1/events?filters[$or][0][status][$eq]=ongoing&filters[$or][1][status][$eq]=done
+/api/v1/events?filters[softfile_status][$eq]=uploaded
 /api/v1/events?q=rapat&filters[status][$eq]=ongoing
 ```
 
@@ -733,6 +732,11 @@ Body:
 | `status` | `string` | Ya | `ongoing` atau `done` |
 
 Response sukses memuat relasi `user`.
+
+Catatan:
+
+- `softfile_status` tidak diinput manual pada endpoint event.
+- Nilainya otomatis `pending_upload` atau `uploaded` berdasarkan ada tidaknya archive pada event yang memiliki relasi `files`.
 
 ## 9. Update Event
 
