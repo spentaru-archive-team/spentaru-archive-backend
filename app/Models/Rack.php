@@ -15,11 +15,14 @@ class Rack extends Model
         'cabinet_id',
         'rack_number',
         'capacity',
+        'used_capacity',
     ];
 
     protected function casts(): array
     {
         return [
+            'capacity' => 'integer',
+            'used_capacity' => 'integer',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];

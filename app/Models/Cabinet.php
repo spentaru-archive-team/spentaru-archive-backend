@@ -11,6 +11,7 @@ class Cabinet extends Model
     use HasFactory;
 
     protected $fillable = [
+        'cabinet_number',
         'name',
     ];
 

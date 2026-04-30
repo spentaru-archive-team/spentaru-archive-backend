@@ -4,29 +4,21 @@ namespace Database\Seeders;
 
 use App\Models\Archive;
 use App\Models\ArchiveCategory;
-use App\Models\ArchiveStorageRule;
-use App\Models\Cabinet;
 use App\Models\Event;
-use App\Models\Rack;
 use App\Models\Subcategory;
 use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
 
 class ArchiveSeeder extends Seeder
 {
     public function run(): void
     {
-        $users = $this->seedUsers();
-        $admin = $users->firstWhere('username', 'admin');
-
-        $categories = $this->seedCategories();
-        $subcategories = $this->seedSubcategories($categories);
-        $events = $this->seedEvents($admin);
-        $racks = $this->seedStorage();
-        $this->seedStorageRules($categories);
+        $categories = ArchiveCategory::query()->orderBy('id')->get()->keyBy('name');
+        $subcategories = Subcategory::query()->orderBy('id')->get()->groupBy('category_id');
+        $users = User::query()->orderBy('id')->get();
+        $events = Event::query()->orderBy('id')->get();
 
         $documents = [
             'Surat Keputusan',
@@ -34,11 +26,13 @@ class ArchiveSeeder extends Seeder
             'Berita Acara',
             'Notulen Rapat',
             'Daftar Hadir',
-            'Dokumentasi',
             'Proposal',
             'Rencana Anggaran',
             'Rekapitulasi',
             'Surat Tugas',
+            'Dokumentasi',
+            'Evaluasi Program',
+            'Sertifikat Kegiatan',
         ];
 
         $subjects = [
@@ -52,299 +46,76 @@ class ArchiveSeeder extends Seeder
             'Hari Kartini',
             'Perpisahan Kelas IX',
             'Inventaris Lab',
+            'Festival Literasi',
+            'Monitoring BOS',
         ];
 
-        for ($i = 1; $i <= 50; $i++) {
-            $category = $categories[($i - 1) % $categories->count()];
+        $categoryNames = $categories->keys()->values();
+        $retentionCycle = ['active', 'active', 'retained', 'ready_for_destruction', 'destroyed', 'active'];
+
+        for ($i = 1; $i <= 36; $i++) {
+            $categoryName = $categoryNames[($i - 1) % $categoryNames->count()];
+            $category = $categories[$categoryName];
             $subcategoryPool = $subcategories->get($category->id, collect());
-            $subcategory = $subcategoryPool->isNotEmpty()
-                ? $subcategoryPool[($i - 1) % $subcategoryPool->count()]
-                : null;
-            $event = $events[($i - 1) % $events->count()];
-            $status = $i <= 35 ? 'uploaded' : 'pending_upload';
-            $title = sprintf(
-                '%s %s %02d',
-                $documents[($i - 1) % count($documents)],
-                $subjects[($i - 1) % count($subjects)],
-                $i
-            );
+            $subcategory = $this->resolveSubcategory($subcategoryPool, $i);
+            $status = $i % 4 === 0 ? 'pending_upload' : 'uploaded';
+            $retentionStatus = $retentionCycle[($i - 1) % count($retentionCycle)];
+            $year = 2021 + ($i % 6);
+            $dueDate = Carbon::create($year + 2, (($i - 1) % 12) + 1, min(20, 5 + $i));
+            $decider = $retentionStatus === 'active'
+                ? null
+                : $users->firstWhere('role', 'admin') ?? $users->first();
 
-            $archive = Archive::query()->updateOrCreate(
-                ['title' => $title],
+            Archive::query()->updateOrCreate(
+                ['title' => sprintf('%s %s %02d', $documents[($i - 1) % count($documents)], $subjects[($i - 1) % count($subjects)], $i)],
                 [
-                    'event_id' => $i % 5 === 0 ? null : $event->id,
-                    'year' => 2022 + ($i % 5),
-                    'notes' => $i % 4 === 0 ? null : 'Arsip nomor '.$i.' untuk kebutuhan dokumentasi sekolah.',
+                    'event_id' => $events->isEmpty() || $i % 7 === 0
+                        ? null
+                        : $events[($i - 1) % $events->count()]->id,
+                    'year' => $year,
+                    'notes' => $i % 5 === 0
+                        ? null
+                        : 'Dokumen arsip untuk kebutuhan audit, pelaporan, atau dokumentasi kegiatan sekolah.',
                     'category_id' => $category->id,
-                    'subcategory_id' => $i % 6 === 0 || $subcategory === null ? null : $subcategory->id,
-                    'uploader' => $admin->id,
+                    'subcategory_id' => $subcategory?->id,
+                    'uploader' => $users[($i - 1) % $users->count()]->id,
                     'status' => $status,
-                ]
-            );
-
-            if ($status !== 'uploaded') {
-                $archive->files()->delete();
-                $archive->physicalLocation()->delete();
-                $archive->ocrText()->delete();
-
-                continue;
-            }
-
-            $rack = $racks[($i - 1) % $racks->count()];
-            $slotNumber = intdiv($i - 1, $racks->count()) + 1;
-            $extension = ['pdf', 'docx', 'xlsx'][($i - 1) % 3];
-            $basename = Str::slug($title, '_');
-
-            $archive->files()->updateOrCreate(
-                ['archive_id' => $archive->id],
-                [
-                    'file_name' => $basename.'.'.$extension,
-                    'file_size' => 120000 + ($i * 157),
-                    'file_type' => $extension,
-                    'file_url' => '/storage/uploads/'.$basename.'.'.$extension,
-                ]
-            );
-
-            $archive->physicalLocation()->updateOrCreate(
-                ['archive_id' => $archive->id],
-                [
-                    'cabinet_id' => $rack->cabinet_id,
-                    'rack_id' => $rack->id,
-                    'slot_number' => $slotNumber,
-                    'label_code' => sprintf(
-                        'L%d-R%d-S%02d',
-                        $rack->cabinet_id,
-                        $rack->rack_number,
-                        $slotNumber
-                    ),
-                    'notes' => 'Lokasi fisik arsip '.$title,
-                ]
-            );
-
-            $archive->ocrText()->updateOrCreate(
-                ['archive_id' => $archive->id],
-                [
-                    'extracted_text' => 'Hasil OCR simulasi untuk '.$title.' tahun '.(2022 + ($i % 5)).'.',
+                    'retention_due_date' => $status === 'pending_upload' && $i % 8 === 0 ? null : $dueDate->toDateString(),
+                    'retention_status' => $retentionStatus,
+                    'retention_decided_at' => $retentionStatus === 'active' ? null : $dueDate->copy()->addMonths(2),
+                    'retention_decided_by' => $decider?->id,
+                    'retention_note' => $this->resolveRetentionNote($retentionStatus, $i),
                 ]
             );
         }
 
-        $this->syncRackUsage();
-    }
-
-    private function seedUsers(): Collection
-    {
-        $items = [
-            [
-                'username' => 'admin',
-                'name' => 'Admin 1',
-                'subject' => 'Administrasi',
-                'position' => 'Administrator',
-                'password' => 'password',
-                'role' => 'admin',
-            ],
-            [
-                'username' => 'guru_demo',
-                'name' => 'Guru Demo',
-                'subject' => 'Bahasa Indonesia',
-                'position' => 'Guru Mapel',
-                'password' => 'password',
-                'role' => 'guru',
-            ],
-        ];
-
-        return collect($items)->map(function (array $item) {
-            return User::query()->updateOrCreate(
-                ['username' => $item['username']],
-                [
-                    'name' => $item['name'],
-                    'subject' => $item['subject'],
-                    'position' => $item['position'],
-                    'password' => $item['password'],
-                    'role' => $item['role'],
-                ]
-            );
+        Event::query()->get()->each(function (Event $event): void {
+            $event->update([
+                'softfile_status' => $event->archives()
+                    ->where('status', 'uploaded')
+                    ->exists()
+                    ? 'uploaded'
+                    : 'pending_upload',
+            ]);
         });
     }
 
-    private function seedCategories(): Collection
+    private function resolveSubcategory(Collection $subcategoryPool, int $index): ?Subcategory
     {
-        $items = [
-            ['name' => 'Data Siswa', 'description' => 'Arsip data pribadi siswa.'],
-            ['name' => 'Data Guru dan Staf', 'description' => 'Arsip data guru dan tenaga kependidikan.'],
-            ['name' => 'Akademik/Kurikulum', 'description' => 'Arsip dokumen terkait kegiatan pembelajaran dan kurikulum.'],
-            ['name' => 'Administrasi Sekolah dan Bendahara', 'description' => 'Arsip dokumen administrasi umum dan keuangan sekolah.'],
-            ['name' => 'Inventaris Sekolah', 'description' => 'Arsip dokumen terkait sarana dan prasarana sekolah.'],
-            ['name' => 'Kesiswaan dan BK', 'description' => 'Arsip dokumen terkait kegiatan kesiswaan dan bimbingan konseling.'],
-            ['name' => 'Arsip Alumni', 'description' => 'Arsip data dan dokumen terkait alumni sekolah.'],
-            ['name' => 'MBG', 'description' => 'Arsip dokumen terkait program Makan Bergizi Gratis.'],
-            ['name' => 'Program Literasi', 'description' => 'Arsip dokumen terkait program literasi sekolah.'],
-            ['name' => 'Pengembang Sekolah', 'description' => 'Arsip dokumen terkait program pengembang sekolah.'],
-            ['name' => 'Backup / Arsip Dokumen', 'description' => 'Arsip dokumen yang sudah tidak aktif namun perlu disimpan sebagai backup.'],
-            ['name' => 'Program Adiwiyata', 'description' => 'Arsip dokumen terkait program Adiwiyata dan kegiatan lingkungan hidup.'],
-            ['name' => 'RKT, RKAS, RKJM', 'description' => 'Arsip dokumen perencanaan sekolah seperti Rencana Kerja Tahunan, Rencana Kegiatan dan Anggaran Sekolah, dan Rencana Kerja Jangka Menengah.'],
-        ];
-
-        foreach ($items as $item) {
-            ArchiveCategory::query()->updateOrCreate(
-                ['name' => $item['name']],
-                ['description' => $item['description']]
-            );
+        if ($subcategoryPool->isEmpty() || $index % 6 === 0) {
+            return null;
         }
 
-        return ArchiveCategory::query()->orderBy('id')->get();
+        return $subcategoryPool[($index - 1) % $subcategoryPool->count()];
     }
 
-    private function seedSubcategories(Collection $categories): Collection
+    private function resolveRetentionNote(string $retentionStatus, int $index): ?string
     {
-        $map = [
-            'Data Siswa' => ['Data Pribadi', 'Nilai', 'Absensi'],
-            'Data Guru dan Staf' => ['Guru ASN', 'Guru Honorer', 'Tenaga Pendidikan'],
-            'Akademik/Kurikulum' => ['Jadwal Pelajaran', 'Modul Ajar / RPP', 'Kurikulum', 'Nilai Siswa', 'Kalender Pendidikan', 'Tahfidz'],
-            'Administrasi Sekolah dan Bendahara' => ['Surat Masuk', 'Surat Keluar', 'Notulen Rapat', 'SK', 'MOU / Kerja Sama', 'Laporan Kegiatan Sekolah', 'SOP', 'Jadwal Piker', 'Program Kerja Tugas Tambahan Guru'],
-            'Inventaris Sekolah' => ['Aset Tetap', 'Laboratorium', 'Perpustakaan'],
-            'Kesiswaan dan BK' => ['Ekstrakurikuler', 'Pelanggaran dan Pembinaan', 'Prestasi Siswa', 'Data Psikotes', 'Bimbingan Konseling', 'OSIS'],
-        ];
-
-        foreach ($map as $categoryName => $names) {
-            $category = $categories->firstWhere('name', $categoryName);
-
-            if (! $category) {
-                continue;
-            }
-
-            foreach ($names as $name) {
-                Subcategory::query()->updateOrCreate(
-                    [
-                        'category_id' => $category->id,
-                        'name' => $name,
-                    ],
-                    []
-                );
-            }
-        }
-
-        return Subcategory::query()
-            ->orderBy('id')
-            ->get()
-            ->groupBy('category_id');
-    }
-
-    private function seedEvents(User $admin): Collection
-    {
-        $items = [
-            ['title' => 'MPLS 2026', 'description' => 'Kegiatan orientasi peserta didik baru.', 'date' => '2026-07-15', 'status' => 'ongoing'],
-            ['title' => 'Workshop Guru', 'description' => 'Peningkatan kompetensi guru.', 'date' => '2026-06-10', 'status' => 'done'],
-            ['title' => 'Class Meeting', 'description' => 'Kegiatan akhir semester untuk siswa.', 'date' => '2026-06-25', 'status' => 'ongoing'],
-            ['title' => 'Pesantren Ramadhan', 'description' => 'Program pembinaan karakter siswa.', 'date' => '2026-03-20', 'status' => 'done'],
-            ['title' => 'Rapat Komite', 'description' => 'Koordinasi program sekolah dengan komite.', 'date' => '2026-05-12', 'status' => 'ongoing'],
-            ['title' => 'P5 Kewirausahaan', 'description' => 'Proyek profil pelajar pancasila.', 'date' => '2026-08-01', 'status' => 'ongoing'],
-        ];
-
-        foreach ($items as $item) {
-            Event::query()->updateOrCreate(
-                ['title' => $item['title']],
-                $item + ['user_id' => $admin->id]
-            );
-        }
-
-        return Event::query()->orderBy('id')->get();
-    }
-
-    private function seedStorage(): Collection
-    {
-        $cabinetDefinitions = [
-            ['cabinet_number' => 1, 'name' => 'Standar Isi'],
-            ['cabinet_number' => 2, 'name' => 'Standar Proses'],
-            ['cabinet_number' => 3, 'name' => 'Standar Kompetensi Lulusan'],
-            ['cabinet_number' => 4, 'name' => 'Standar Pendidik & Tenaga Kependidikan'],
-            ['cabinet_number' => 5, 'name' => 'Standar Sarana Prasarana'],
-            ['cabinet_number' => 6, 'name' => 'Standar Pengelolaan'],
-            ['cabinet_number' => 7, 'name' => 'Standar Pembiayaan'],
-            ['cabinet_number' => 8, 'name' => 'Standar Penilaian'],
-            ['cabinet_number' => 9, 'name' => 'Campuran'],
-            ['cabinet_number' => 10, 'name' => 'Lemari Soal Ujian/Sumatif'],
-            ['cabinet_number' => 11, 'name' => 'Lemari Laporan Dana BOS (1)'],
-            ['cabinet_number' => 12, 'name' => 'Lemari Kosong'],
-            ['cabinet_number' => 13, 'name' => 'Lemari Laporan Dana BOS (2)'],
-            ['cabinet_number' => 14, 'name' => 'Lemari Laporan Dana BOS (3)'],
-        ];
-
-        foreach ($cabinetDefinitions as $cabinetDefinition) {
-            Cabinet::query()->updateOrCreate(
-                ['cabinet_number' => $cabinetDefinition['cabinet_number']],
-                ['name' => $cabinetDefinition['name']]
-            );
-        }
-
-        $cabinets = Cabinet::query()->orderBy('cabinet_number')->get();
-        $hasUsedCapacityColumn = Schema::hasColumn('racks', 'used_capacity');
-
-        foreach ($cabinets as $cabinet) {
-            for ($rackNumber = 1; $rackNumber <= 4; $rackNumber++) {
-                $rackAttributes = ['capacity' => 20];
-
-                if ($hasUsedCapacityColumn) {
-                    $rackAttributes['used_capacity'] = 0;
-                }
-
-                Rack::query()->updateOrCreate(
-                    [
-                        'cabinet_id' => $cabinet->id,
-                        'rack_number' => $rackNumber,
-                    ],
-                    $rackAttributes
-                );
-            }
-        }
-
-        return Rack::query()->with('cabinet')->orderBy('id')->get();
-    }
-
-    private function seedStorageRules(Collection $categories): void
-    {
-        $cabinetIdsByNumber = Cabinet::query()->pluck('id', 'cabinet_number');
-
-        $rules = [
-            ['name' => 'Data Siswa', 'cabinet_number' => 1, 'priority' => 10],
-            ['name' => 'Data Guru dan Staf', 'cabinet_number' => 1, 'priority' => 9],
-            ['name' => 'Akademik/Kurikulum', 'cabinet_number' => 2, 'priority' => 8],
-            ['name' => 'Administrasi Sekolah dan Bendahara', 'cabinet_number' => 2, 'priority' => 7],
-            ['name' => 'Inventaris Sekolah', 'cabinet_number' => 3, 'priority' => 6],
-        ];
-
-        foreach ($rules as $rule) {
-            $category = $categories->firstWhere('name', $rule['name']);
-            $cabinetId = $cabinetIdsByNumber->get($rule['cabinet_number']);
-
-            if ($category && $cabinetId) {
-                ArchiveStorageRule::query()->updateOrCreate(
-                    [
-                        'category_id' => $category->id,
-                        'subcategory_id' => null,
-                    ],
-                    [
-                        'cabinet_id' => $cabinetId,
-                        'priority' => $rule['priority'],
-                    ]
-                );
-            }
-        }
-    }
-
-    private function syncRackUsage(): void
-    {
-        if (! Schema::hasColumn('racks', 'used_capacity')) {
-            return;
-        }
-
-        Rack::query()
-            ->withCount('physicalLocations')
-            ->get()
-            ->each(function (Rack $rack): void {
-                $rack->update([
-                    'used_capacity' => $rack->physical_locations_count,
-                ]);
-            });
+        return match ($retentionStatus) {
+            'retained' => 'Arsip dipertahankan karena masih sering dipakai untuk referensi historis.',
+            'ready_for_destruction' => 'Arsip masuk daftar telaah pemusnahan batch '.(2026 + ($index % 2)).'.',
+            'destroyed' => 'Arsip sudah dimusnahkan sesuai berita acara retensi.',
+            default => null,
+        };
     }
 }
