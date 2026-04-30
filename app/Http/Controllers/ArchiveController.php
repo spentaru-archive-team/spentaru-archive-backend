@@ -18,8 +18,6 @@ class ArchiveController extends Controller
 {
     public function __construct(private ArchiveStorageService $storageService) {}
 
-
-
     private function hasSameValue(mixed $current, mixed $incoming): bool
     {
         if ($current === null || $incoming === null) {
@@ -33,10 +31,9 @@ class ArchiveController extends Controller
         return $current === $incoming;
     }
 
-
     private function storagePathFromUrl(?string $fileUrl): ?string
     {
-        if (!$fileUrl) {
+        if (! $fileUrl) {
             return null;
         }
 
@@ -54,21 +51,29 @@ class ArchiveController extends Controller
         ]);
     }
 
-
-
-    
-
     /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
     {
-        if ($request->boolean('all')) {
-            $archives = Archive::orderBy('created_at', 'desc')->get();
-        } else {
-            $archives = Archive::with(['event', 'category', 'subcategory', 'files', 'uploader', 'physicalLocation.cabinet', 'physicalLocation.rack'])
-                ->selectRaw('ROW_NUMBER() OVER (ORDER BY id) AS row_num, archives.*')
-                ->paginate(10);
+        $archives = Archive::with([
+            'event',
+            'category',
+            'subcategory',
+            'files',
+            'uploader',
+            'physicalLocation.cabinet',
+            'physicalLocation.rack',
+        ])
+            ->filter()
+            ->sort()
+            ->paginate(10);
+
+        if (empty($archives[0])) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Arsip tidak ditemukan',
+            ], 404);
         }
 
         return response()->json([
@@ -101,7 +106,7 @@ class ArchiveController extends Controller
         $file = $request->file('file');
         $timestamp = now()->format('YmdHisv');
         $random = Str::random(10);
-        $filename = str(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME) . ' ' . $random . ' ' . $timestamp)->slug('_') . '.' . strtolower($file->getClientOriginalExtension());
+        $filename = str(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME).' '.$random.' '.$timestamp)->slug('_').'.'.strtolower($file->getClientOriginalExtension());
         $path = $file->storeAs('uploads', $filename, 'public');
 
         $year = intval($req_archive['year']);
@@ -121,7 +126,7 @@ class ArchiveController extends Controller
                     'file_name' => $filename,
                     'file_size' => $file->getSize(),
                     'file_type' => strtolower($file->getClientOriginalExtension()),
-                    'file_url' => '/storage/' . $path,
+                    'file_url' => '/storage/'.$path,
                 ]);
 
                 $this->storageService->assignLocation($archive, $req_archive['category_id'], $req_archive['subcategory_id'] ?? null);
@@ -171,7 +176,7 @@ class ArchiveController extends Controller
             ->all();
         $archiveData = [];
         foreach ($archiveInput as $key => $value) {
-            if (!$this->hasSameValue($archive->{$key}, $value)) {
+            if (! $this->hasSameValue($archive->{$key}, $value)) {
                 $archiveData[$key] = $value;
             }
         }
@@ -182,7 +187,7 @@ class ArchiveController extends Controller
         $previousPaths = collect([$archive->files])
             ->filter()
             ->pluck('file_url')
-            ->map(fn(?string $fileUrl) => $this->storagePathFromUrl($fileUrl))
+            ->map(fn (?string $fileUrl) => $this->storagePathFromUrl($fileUrl))
             ->filter()
             ->values()
             ->all();
@@ -191,11 +196,11 @@ class ArchiveController extends Controller
             $file = $request->file('file');
             $timestamp = now()->format('YmdHisv');
             $random = Str::random(10);
-            $filename = str(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME) . ' ' . $random . ' ' . $timestamp)->slug('_') . '.' . strtolower($file->getClientOriginalExtension());
+            $filename = str(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME).' '.$random.' '.$timestamp)->slug('_').'.'.strtolower($file->getClientOriginalExtension());
             $storedPath = $file->storeAs('uploads', $filename, 'public');
-            $path = '/storage/' . $storedPath;
+            $path = '/storage/'.$storedPath;
 
-            if (!$this->hasSameValue($archive->status, 'uploaded')) {
+            if (! $this->hasSameValue($archive->status, 'uploaded')) {
                 $archiveData['status'] = 'uploaded';
             }
         }
@@ -244,7 +249,7 @@ class ArchiveController extends Controller
         $filePaths = collect([$archive->files])
             ->filter()
             ->pluck('file_url')
-            ->map(fn(?string $fileUrl) => $this->storagePathFromUrl($fileUrl))
+            ->map(fn (?string $fileUrl) => $this->storagePathFromUrl($fileUrl))
             ->filter()
             ->values()
             ->all();
@@ -260,19 +265,6 @@ class ArchiveController extends Controller
             'message' => 'sukses menghapus archive',
         ]);
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     public function readyForDestruction()
     {

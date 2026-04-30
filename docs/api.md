@@ -38,7 +38,7 @@ http://localhost:8000/api/v1
 
 | Method | Endpoint | Auth | Keterangan |
 |---|---|---|---|
-| `GET` | `/archives` | Ya | List archive, `all=true` untuk tanpa pagination |
+| `GET` | `/archives` | Ya | List archive, mendukung Purity direct filter + sort, pagination 10 item |
 | `POST` | `/archives` | Ya | Create archive + upload file |
 | `GET` | `/archives/without-location` | Ya | List arsip yang belum punya lokasi fisik |
 | `GET` | `/archives/physical-locations` | Ya | List semua lokasi fisik arsip |
@@ -164,7 +164,157 @@ Kemungkinan error:
 - `422` bila body tidak lolos validasi
 - `429` bila melewati limit login
 
-## 2. Create Archive
+## 2. List Archive
+
+```http
+GET /api/v1/archives
+```
+
+Perilaku:
+
+- Endpoint selalu pagination `10` item per halaman.
+- Query dijalankan lewat `Archive::with(...)->filter()->sort()->paginate(10)`.
+- Jika hasil page kosong, endpoint mengembalikan `404` dengan message `Arsip tidak ditemukan`.
+- Sort/filter tidak valid akan diabaikan diam-diam karena `config('purity.silent') = true`.
+- Saat ini belum ada parameter `q` untuk full-text search archive. Migration fulltext `title` + `notes` sudah ada, tetapi belum dipakai controller ini.
+
+### Query Sort
+
+Format:
+
+```text
+?sort=field
+?sort=field:asc
+?sort=field:desc
+?sort[]=field_a:desc&sort[]=field_b:asc
+```
+
+Catatan:
+
+- Jika arah sort tidak ditulis, default-nya `asc`.
+- Sort relasi hanya mendukung 1 hop dengan format `relation.column:direction`.
+- Nested relation sort seperti `physicalLocation.cabinet.name:asc` tidak didukung oleh implementasi package yang aktif.
+
+#### Semua kolom archive yang bisa di-sort langsung
+
+- `id`
+- `event_id`
+- `title`
+- `year`
+- `notes`
+- `category_id`
+- `subcategory_id`
+- `status`
+- `retention_due_date`
+- `retention_status`
+- `retention_decided_at`
+- `retention_decided_by`
+- `retention_note`
+- `uploader`
+- `created_at`
+- `updated_at`
+- Versi qualified dari semua kolom di atas juga diterima, mis. `archives.title:asc`, `archives.year:desc`.
+
+#### Semua sort relasi 1 hop yang bisa dipakai
+
+- `event.{id,title,user_id,description,date,status,created_at,updated_at}`
+- `category.{id,name,has_subcategory,description,created_at,updated_at}`
+- `subcategory.{id,category_id,name,created_at,updated_at}`
+- `files.{id,archive_id,file_name,file_size,file_type,file_url,created_at,updated_at}`
+- `physicalLocation.{id,archive_id,cabinet_id,rack_id,slot_number,label_code,notes,created_at,updated_at}`
+- `ocrText.{id,archive_id,extracted_text,created_at,updated_at}`
+- `uploader.{id,name,subject,position,username,password,role,last_login_at,created_at,updated_at}`
+- `retentionDecidedBy.{id,name,subject,position,username,password,role,last_login_at,created_at,updated_at}`
+
+Contoh:
+
+```text
+/api/v1/archives?sort=year:desc
+/api/v1/archives?sort=category.name:asc
+/api/v1/archives?sort[]=retention_due_date:asc&sort[]=title:desc
+```
+
+### Query Filter
+
+Format dasar:
+
+```text
+?filters[field][operator]=value
+```
+
+Semua operator filter aktif saat ini:
+
+| Operator | Arti singkat |
+|---|---|
+| `$eq` | sama dengan, case-insensitive default DB collation |
+| `$eqc` | sama dengan, case-sensitive |
+| `$ne` | tidak sama dengan |
+| `$lt` | kurang dari |
+| `$lte` | kurang dari atau sama dengan |
+| `$gt` | lebih dari |
+| `$gte` | lebih dari atau sama dengan |
+| `$in` | ada di daftar nilai |
+| `$notIn` | tidak ada di daftar nilai |
+| `$between` | berada di antara dua nilai |
+| `$notBetween` | di luar dua nilai |
+| `$contains` | mengandung substring |
+| `$notContains` | tidak mengandung substring |
+| `$containsc` | mengandung substring, case-sensitive |
+| `$notContainsc` | tidak mengandung substring, case-sensitive |
+| `$startsWith` | diawali substring |
+| `$startsWithc` | diawali substring, case-sensitive |
+| `$endsWith` | diakhiri substring |
+| `$endsWithc` | diakhiri substring, case-sensitive |
+| `$null` | nilai `NULL` |
+| `$notNull` | nilai bukan `NULL` |
+| `$and` | gabungan filter logika AND |
+| `$or` | gabungan filter logika OR |
+
+Contoh bentuk operator array:
+
+```text
+filters[year][$between][0]=2020&filters[year][$between][1]=2024
+filters[status][$in][0]=uploaded&filters[status][$in][1]=pending_upload
+filters[$or][0][title][$contains]=rapor&filters[$or][1][notes][$contains]=rapat
+```
+
+#### Semua field archive yang bisa di-filter langsung
+
+- `id`
+- `event_id`
+- `title`
+- `year`
+- `notes`
+- `category_id`
+- `subcategory_id`
+- `status`
+- `retention_due_date`
+- `retention_status`
+- `retention_decided_at`
+- `retention_decided_by`
+- `retention_note`
+- `uploader`
+- `created_at`
+- `updated_at`
+- Versi qualified juga diterima, mis. `filters[archives.title][$contains]=rapor`.
+
+Contoh yang valid:
+
+```text
+/api/v1/archives?filters[title][$contains]=rapor
+/api/v1/archives?filters[year][$between][0]=2020&filters[year][$between][1]=2024
+/api/v1/archives?filters[retention_status][$eq]=active
+/api/v1/archives?filters[$or][0][retention_status][$eq]=active&filters[$or][1][retention_status][$eq]=retained
+```
+
+Catatan penting:
+
+- Pada kode aktif sekarang, filter relasi `filters[category][name]...`, `filters[event][title]...`, `filters[physicalLocation]...`, dan nested relation lain belum bekerja. Purity mencoba me-resolve relasi, tetapi model relasinya belum memakai trait `Filterable`, lalu query itu diabaikan diam-diam karena mode `silent`.
+- Jadi daftar filter yang benar-benar aktif saat ini adalah semua kolom langsung tabel `archives` dengan semua operator di atas.
+- Jika mau mengaktifkan filter relasi, model relasi yang ingin dipakai perlu ikut memakai `Abbasudo\Purity\Traits\Filterable` atau perlu dibatasi/diatur eksplisit via field map sendiri.
+- Sort relasi tetap aktif walaupun filter relasi belum aktif.
+
+## 3. Create Archive
 
 ```http
 POST /api/v1/archives
@@ -192,7 +342,7 @@ Perilaku:
 - Jika category sudah punya subcategory, maka `subcategory_id` wajib diisi.
 - Sistem mencoba auto-assign lokasi fisik melalui `ArchiveStorageService`.
 
-## 3. Update Archive
+## 4. Update Archive
 
 ```http
 PUT /api/v1/archives/{id}
@@ -206,7 +356,7 @@ Perilaku:
 - Jika file baru diunggah, `status` dipaksa menjadi `uploaded`.
 - Endpoint ini tidak otomatis menghitung ulang lokasi fisik.
 
-## 4. Arsip Tanpa Lokasi
+## 5. Arsip Tanpa Lokasi
 
 ```http
 GET /api/v1/archives/without-location
@@ -214,7 +364,7 @@ GET /api/v1/archives/without-location
 
 Mengembalikan semua archive yang belum punya relasi `physicalLocation`.
 
-## 5. Physical Location Archive
+## 6. Physical Location Archive
 
 ### List semua physical location
 

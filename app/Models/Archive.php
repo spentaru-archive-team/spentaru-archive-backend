@@ -2,14 +2,20 @@
 
 namespace App\Models;
 
+use Abbasudo\Purity\Traits\Filterable;
+use Abbasudo\Purity\Traits\Sortable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Laravel\Scout\Searchable;
 
 class Archive extends Model
 {
-    use HasFactory;
+    use HasFactory, Searchable, Sortable, Filterable {
+        Sortable::getTableColumns insteadof Filterable;
+        Sortable::realName insteadof Filterable;
+    }
 
     protected $fillable = [
         'event_id',
@@ -36,6 +42,17 @@ class Archive extends Model
             'retention_decided_at' => 'datetime',
         ];
     }
+
+    public function toSearchableArray(): array
+    {
+        return [
+            'title',
+            'notes'
+        ];
+    }
+
+
+
 
     public function uploader(): BelongsTo
     {
@@ -71,7 +88,6 @@ class Archive extends Model
     {
         return $this->hasOne(OcrText::class);
     }
-
 
     public function retentionDecidedBy(): BelongsTo
     {
