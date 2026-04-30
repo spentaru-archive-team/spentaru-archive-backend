@@ -12,7 +12,7 @@ use Laravel\Scout\Searchable;
 
 class Event extends Model
 {
-    use HasFactory, Sortable, Searchable, Filterable {
+    use Filterable, HasFactory, Searchable, Sortable {
         Sortable::getTableColumns insteadof Filterable;
         Sortable::realName insteadof Filterable;
     }
@@ -23,6 +23,7 @@ class Event extends Model
         'description',
         'date',
         'status',
+        'softfile_status',
     ];
 
     protected function casts(): array
@@ -34,11 +35,11 @@ class Event extends Model
         ];
     }
 
-        public function toSearchableArray(): array
+    public function toSearchableArray(): array
     {
         return [
             'title' => $this->title,
-            'description' => $this->description
+            'description' => $this->description,
         ];
     }
 

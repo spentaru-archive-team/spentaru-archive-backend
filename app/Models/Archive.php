@@ -12,7 +12,7 @@ use Laravel\Scout\Searchable;
 
 class Archive extends Model
 {
-    use HasFactory, Searchable, Sortable, Filterable {
+    use Filterable, HasFactory, Searchable, Sortable {
         Sortable::getTableColumns insteadof Filterable;
         Sortable::realName insteadof Filterable;
     }
@@ -47,10 +47,28 @@ class Archive extends Model
     {
         return [
             'title' => $this->title,
-            'notes' => $this->notes
+            'notes' => $this->notes,
         ];
     }
 
+    protected static function booted()
+    {
+        static::created(function ($archive) {
+            $archive->event?->update([
+                'softfile_status' => 'uploaded',
+            ]);
+        });
+
+        static::deleted(function ($archive) {
+            $event = $archive->event;
+
+            if ($event && ! $event->archives()->exists()) {
+                $event->update([
+                    'softfile_status' => 'pending_upload',
+                ]);
+            }
+        });
+    }
 
 
 
