@@ -11,19 +11,19 @@ class ArchivePhysicalLocationSeeder extends Seeder
     public function run(): void
     {
         $racks = Rack::query()->with('cabinet')->orderBy('cabinet_id')->orderBy('rack_number')->get()->values();
-        $uploadedArchives = Archive::query()
-            ->where('status', 'uploaded')
+        $archivesWithFiles = Archive::query()
+            ->has('files')
             ->orderBy('id')
             ->get()
             ->values();
 
         $locationIndex = 0;
 
-        foreach (Archive::query()->where('status', 'pending_upload')->get() as $archive) {
+        foreach (Archive::query()->doesntHave('files')->get() as $archive) {
             $archive->physicalLocation()->delete();
         }
 
-        foreach ($uploadedArchives as $index => $archive) {
+        foreach ($archivesWithFiles as $index => $archive) {
             if ($index % 4 === 3 || $racks->isEmpty()) {
                 $archive->physicalLocation()->delete();
 

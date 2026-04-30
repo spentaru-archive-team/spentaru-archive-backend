@@ -10,7 +10,7 @@ class OcrTextSeeder extends Seeder
     public function run(): void
     {
         foreach (Archive::query()->with('files')->orderBy('id')->get() as $index => $archive) {
-            if ($archive->status !== 'uploaded' || $index % 3 === 2) {
+            if (! $archive->files || $index % 3 === 2) {
                 $archive->ocrText()->delete();
 
                 continue;

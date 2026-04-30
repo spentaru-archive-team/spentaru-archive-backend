@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('archives', function (Blueprint $table) {
-            $table->date('retention_due_date')->nullable()->after('status');
+            $table->date('retention_due_date')->nullable()->after('uploader');
             $table->enum('retention_status', [
                 'active',
                 'ready_for_destruction',

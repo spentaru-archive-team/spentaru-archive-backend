@@ -58,7 +58,6 @@ class ArchiveSeeder extends Seeder
             $category = $categories[$categoryName];
             $subcategoryPool = $subcategories->get($category->id, collect());
             $subcategory = $this->resolveSubcategory($subcategoryPool, $i);
-            $status = $i % 4 === 0 ? 'pending_upload' : 'uploaded';
             $retentionStatus = $retentionCycle[($i - 1) % count($retentionCycle)];
             $year = 2021 + ($i % 6);
             $dueDate = Carbon::create($year + 2, (($i - 1) % 12) + 1, min(20, 5 + $i));
@@ -79,8 +78,7 @@ class ArchiveSeeder extends Seeder
                     'category_id' => $category->id,
                     'subcategory_id' => $subcategory?->id,
                     'uploader' => $users[($i - 1) % $users->count()]->id,
-                    'status' => $status,
-                    'retention_due_date' => $status === 'pending_upload' && $i % 8 === 0 ? null : $dueDate->toDateString(),
+                    'retention_due_date' => $i % 8 === 0 ? null : $dueDate->toDateString(),
                     'retention_status' => $retentionStatus,
                     'retention_decided_at' => $retentionStatus === 'active' ? null : $dueDate->copy()->addMonths(2),
                     'retention_decided_by' => $decider?->id,
@@ -92,7 +90,7 @@ class ArchiveSeeder extends Seeder
         Event::query()->get()->each(function (Event $event): void {
             $event->update([
                 'softfile_status' => $event->archives()
-                    ->where('status', 'uploaded')
+                    ->whereHas('files')
                     ->exists()
                     ? 'uploaded'
                     : 'pending_upload',

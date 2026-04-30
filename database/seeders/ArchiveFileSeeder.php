@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Archive;
+use App\Models\Event;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
@@ -13,7 +14,7 @@ class ArchiveFileSeeder extends Seeder
         $extensions = ['pdf', 'docx', 'xlsx', 'jpg', 'png'];
 
         foreach (Archive::query()->orderBy('id')->get() as $index => $archive) {
-            if ($archive->status !== 'uploaded') {
+            if (($index + 1) % 4 === 0) {
                 $archive->files()->delete();
 
                 continue;
@@ -32,5 +33,20 @@ class ArchiveFileSeeder extends Seeder
                 ]
             );
         }
+
+        $this->syncEventSoftfileStatus();
+    }
+
+    private function syncEventSoftfileStatus(): void
+    {
+        Event::query()->get()->each(function (Event $event): void {
+            $event->update([
+                'softfile_status' => $event->archives()
+                    ->whereHas('files')
+                    ->exists()
+                    ? 'uploaded'
+                    : 'pending_upload',
+            ]);
+        });
     }
 }
