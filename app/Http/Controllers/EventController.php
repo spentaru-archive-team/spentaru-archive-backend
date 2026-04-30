@@ -11,8 +11,9 @@ class EventController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Event::with('user')
-            ->orderBy('created_at', 'desc')->filter()->sort();
+        $q = $request->query('q');
+
+        $query = Event::search($q ?? '')->query(fn ($query) => $query->with('user')->orderBy('created_at', 'desc')->filter()->sort());
 
         if ($request->boolean('all')) {
             $events = $query->get();

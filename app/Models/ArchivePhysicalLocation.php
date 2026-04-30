@@ -7,10 +7,11 @@ use Abbasudo\Purity\Traits\Sortable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Laravel\Scout\Searchable;
 
 class ArchivePhysicalLocation extends Model
 {
-    use HasFactory, Sortable, Filterable {
+    use Filterable, HasFactory, Searchable, Sortable {
         Sortable::getTableColumns insteadof Filterable;
         Sortable::realName insteadof Filterable;
     }
@@ -23,6 +24,14 @@ class ArchivePhysicalLocation extends Model
         'label_code',
         'notes',
     ];
+
+    public function toSearchableArray(): array
+    {
+        return [
+            'notes' => $this->notes,
+            'label_code' => $this->label_code
+        ];
+    }
 
     public function archive(): BelongsTo
     {

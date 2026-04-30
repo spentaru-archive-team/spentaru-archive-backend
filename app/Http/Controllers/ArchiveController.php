@@ -56,17 +56,14 @@ class ArchiveController extends Controller
      */
     public function index(Request $request)
     {
-        $archives = Archive::with([
-            'event',
+        $q = $request->query('q');
+        $archives = Archive::search($q ?? '')->query(fn ($query) => $query->with(['event',
             'category',
             'subcategory',
             'files',
             'uploader',
             'physicalLocation.cabinet',
-            'physicalLocation.rack',
-        ])
-            ->filter()
-            ->sort()
+            'physicalLocation.rack',])->filter()->sort())
             ->paginate(10);
 
         if (empty($archives[0])) {

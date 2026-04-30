@@ -8,10 +8,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Laravel\Scout\Searchable;
 
 class Event extends Model
 {
-    use HasFactory, Sortable, Filterable {
+    use HasFactory, Sortable, Searchable, Filterable {
         Sortable::getTableColumns insteadof Filterable;
         Sortable::realName insteadof Filterable;
     }
@@ -30,6 +31,14 @@ class Event extends Model
             'date' => 'date',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
+        ];
+    }
+
+        public function toSearchableArray(): array
+    {
+        return [
+            'title' => $this->title,
+            'description' => $this->description
         ];
     }
 

@@ -69,7 +69,8 @@ Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
   - `admin` bisa CRUD master data, user, dan archive storage rule.
   - `guru` bisa read master data, full CRUD archive, akses dashboard, AI gateway, dan update profil sendiri.
 - Upload file archive memakai `multipart/form-data`, file fisik ke disk `public`, metadata ke tabel `archive_files`.
-- User search admin memakai Laravel Scout melalui query `q` pada endpoint list user, dengan filter exact `role`.
+- Endpoint list `users`, `archives`, `events`, dan `archives/physical-locations` sudah memakai query `q` untuk search berbasis Laravel Scout.
+- Endpoint list `archives`, `events`, dan `archives/physical-locations` juga mendukung filter dan sort dinamis via query string.
 - Default konfigurasi Scout saat ini memakai driver `collection` dari `config/scout.php`.
 - Archive bisa punya `physical_location` dan `ocr_text`.
 - Archive auto-assign physical location via `ArchiveStorageService` saat create archive bila rule/rak tersedia.

@@ -46,8 +46,8 @@ class Archive extends Model
     public function toSearchableArray(): array
     {
         return [
-            'title',
-            'notes'
+            'title' => $this->title,
+            'notes' => $this->notes
         ];
     }
 

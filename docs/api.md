@@ -10,11 +10,20 @@ http://localhost:8000/api/v1
 
 - Response JSON mengikuti pola `status`, `message`, lalu opsional `data`, `errors`, `trace_id`.
 - Auth API aktif memakai Laravel Sanctum stateful berbasis session cookie.
-- Pencarian user memakai Laravel Scout; konfigurasi default repo saat ini memakai driver `collection`.
+- Fitur list tertentu mendukung `q` untuk pencarian teks bebas, `filters[...]` untuk penyaringan field, dan `sort` untuk pengurutan hasil.
+- Konfigurasi search default repo saat ini memakai driver `collection` di `config/scout.php`.
 - Frontend SPA atau first-party perlu memanggil `GET /sanctum/csrf-cookie` sebelum `POST /api/v1/auth/login`.
 - Request terproteksi dikirim dengan cookie session dan header CSRF, bukan bearer token.
 - Upload file archive, OCR, dan PDF native memakai `multipart/form-data`.
 - Global error JSON yang sudah ditangani konsisten untuk `401`, `403`, `405`, `422`, dan `429`.
+
+## Panduan Search, Filter, Sort
+
+- `q` dipakai untuk pencarian teks bebas sederhana. Cocok untuk keyword seperti nama, judul, catatan, atau kode label, tergantung endpoint.
+- `filters[...]` dipakai jika ingin menyaring field tertentu dengan aturan yang jelas, mis. sama dengan, mengandung teks, atau rentang angka/tanggal.
+- `sort` dipakai untuk menentukan urutan hasil, mis. terbaru dulu, abjad, atau kombinasi beberapa field.
+- Search, filter, dan sort bisa dipakai bersamaan pada endpoint yang mendukung.
+- Jika parameter query tidak valid, endpoint list yang memakai filter/sort saat ini cenderung mengabaikannya diam-diam, bukan melempar error.
 
 ## Role
 
@@ -38,10 +47,10 @@ http://localhost:8000/api/v1
 
 | Method | Endpoint | Auth | Keterangan |
 |---|---|---|---|
-| `GET` | `/archives` | Ya | List archive, mendukung Purity direct filter + sort, pagination 10 item |
+| `GET` | `/archives` | Ya | List archive, mendukung pencarian `q`, filter, dan sort |
 | `POST` | `/archives` | Ya | Create archive + upload file |
 | `GET` | `/archives/without-location` | Ya | List arsip yang belum punya lokasi fisik |
-| `GET` | `/archives/physical-locations` | Ya | List semua lokasi fisik arsip |
+| `GET` | `/archives/physical-locations` | Ya | List semua lokasi fisik arsip, mendukung pencarian `q`, filter, dan sort |
 | `GET` | `/archives/retention/ready` | Ya | List arsip dengan `retention_status=ready_for_destruction` |
 | `GET` | `/archives/{id}` | Ya | Detail archive |
 | `PUT` | `/archives/{id}` | Ya | Update archive, file opsional |
@@ -56,7 +65,7 @@ http://localhost:8000/api/v1
 
 | Method | Endpoint | Auth | Keterangan |
 |---|---|---|---|
-| `GET` | `/events` | Ya | List event, mendukung `all`, `per_page`, Purity direct filter + sort |
+| `GET` | `/events` | Ya | List event, mendukung pencarian `q`, `all`, `per_page`, filter, dan sort |
 | `GET` | `/events/{id}` | Ya | Detail event |
 | `POST` | `/events` | Admin | Create event |
 | `PUT` | `/events/{id}` | Admin | Update event |
@@ -173,10 +182,34 @@ GET /api/v1/archives
 Perilaku:
 
 - Endpoint selalu pagination `10` item per halaman.
-- Query dijalankan lewat `Archive::with(...)->filter()->sort()->paginate(10)`.
+- Query dijalankan lewat `Archive::search($q ?? '')`, lalu hasilnya masih bisa dipersempit dengan filter dan diurutkan dengan sort.
 - Jika hasil page kosong, endpoint mengembalikan `404` dengan message `Arsip tidak ditemukan`.
 - Sort/filter tidak valid akan diabaikan diam-diam karena `config('purity.silent') = true`.
-- Saat ini belum ada parameter `q` untuk full-text search archive. Migration fulltext `title` + `notes` sudah ada, tetapi belum dipakai controller ini.
+- Search dipakai untuk keyword umum.
+- Filter dipakai untuk syarat field yang lebih presisi.
+- Sort dipakai untuk urutan hasil akhir.
+
+Query:
+
+| Key | Tipe | Default | Keterangan |
+|---|---|---|---|
+| `q` | `string` | - | keyword pencarian arsip |
+| `sort` | `string` atau `array` | - | query pengurutan hasil |
+| `filters` | `object` | - | query penyaringan field |
+
+### Search archive
+
+Search `q` saat ini mencari pada field searchable model archive:
+
+- `title`
+- `notes`
+
+Contoh:
+
+```text
+/api/v1/archives?q=rapor
+/api/v1/archives?q=surat%20keluar
+```
 
 ### Query Sort
 
@@ -232,6 +265,7 @@ Contoh:
 /api/v1/archives?sort=year:desc
 /api/v1/archives?sort=category.name:asc
 /api/v1/archives?sort[]=retention_due_date:asc&sort[]=title:desc
+/api/v1/archives?q=rapor&sort=year:desc
 ```
 
 ### Query Filter
@@ -305,13 +339,14 @@ Contoh yang valid:
 /api/v1/archives?filters[year][$between][0]=2020&filters[year][$between][1]=2024
 /api/v1/archives?filters[retention_status][$eq]=active
 /api/v1/archives?filters[$or][0][retention_status][$eq]=active&filters[$or][1][retention_status][$eq]=retained
+/api/v1/archives?q=rapor&filters[retention_status][$eq]=active
 ```
 
 Catatan penting:
 
-- Pada kode aktif sekarang, filter relasi `filters[category][name]...`, `filters[event][title]...`, `filters[physicalLocation]...`, dan nested relation lain belum bekerja. Purity mencoba me-resolve relasi, tetapi model relasinya belum memakai trait `Filterable`, lalu query itu diabaikan diam-diam karena mode `silent`.
+- Pada kode aktif sekarang, filter relasi `filters[category][name]...`, `filters[event][title]...`, `filters[physicalLocation]...`, dan nested relation lain belum bekerja. Query seperti itu saat ini diabaikan diam-diam oleh backend.
 - Jadi daftar filter yang benar-benar aktif saat ini adalah semua kolom langsung tabel `archives` dengan semua operator di atas.
-- Jika mau mengaktifkan filter relasi, model relasi yang ingin dipakai perlu ikut memakai `Abbasudo\Purity\Traits\Filterable` atau perlu dibatasi/diatur eksplisit via field map sendiri.
+- Jika nanti ingin mengaktifkan filter relasi, backend perlu menambahkan dukungan eksplisit pada model relasi yang terkait.
 - Sort relasi tetap aktif walaupun filter relasi belum aktif.
 
 ## 3. Create Archive
@@ -374,19 +409,37 @@ GET /api/v1/archives/physical-locations
 
 Perilaku:
 
-- Query dasar: `ArchivePhysicalLocation::with(['archive.files', 'cabinet', 'rack'])->filter()->sort()`.
+- Query dasar: `ArchivePhysicalLocation::search($q ?? '')`, lalu hasilnya masih bisa dipersempit dengan filter dan diurutkan dengan sort.
 - Jika `all=true`, response mengembalikan semua physical location tanpa pagination.
 - Jika `all` tidak dikirim atau `false`, endpoint memakai pagination `10` item per halaman.
 - Relasi yang dimuat: `archive.files`, `cabinet`, `rack`.
 - Filter/sort tidak valid akan diabaikan diam-diam karena `config('purity.silent') = true`.
+- Search dipakai untuk keyword umum.
+- Filter dipakai untuk syarat field yang lebih presisi.
+- Sort dipakai untuk urutan hasil akhir.
 
 Query:
 
 | Key | Tipe | Default | Keterangan |
 |---|---|---|---|
 | `all` | `boolean` | `false` | bila `true`, tanpa pagination |
-| `sort` | `string` atau `array` | - | format Purity sort |
-| `filters` | `object` | - | format Purity filter |
+| `q` | `string` | - | keyword pencarian lokasi fisik |
+| `sort` | `string` atau `array` | - | query pengurutan hasil |
+| `filters` | `object` | - | query penyaringan field |
+
+### Search physical location
+
+Search `q` saat ini mencari pada field searchable model physical location:
+
+- `label_code`
+- `notes`
+
+Contoh:
+
+```text
+/api/v1/archives/physical-locations?q=L1-R2
+/api/v1/archives/physical-locations?q=lemari%20depan
+```
 
 ### Sort physical location
 
@@ -424,6 +477,7 @@ Contoh:
 /api/v1/archives/physical-locations?sort=slot_number:asc
 /api/v1/archives/physical-locations?sort=cabinet.name:asc
 /api/v1/archives/physical-locations?sort[]=cabinet_id:asc&sort[]=slot_number:asc
+/api/v1/archives/physical-locations?q=L1&sort=slot_number:asc
 ```
 
 ### Filter physical location
@@ -464,11 +518,12 @@ Contoh:
 /api/v1/archives/physical-locations?filters[cabinet_id][$eq]=1
 /api/v1/archives/physical-locations?filters[slot_number][$between][0]=1&filters[slot_number][$between][1]=10
 /api/v1/archives/physical-locations?filters[$or][0][label_code][$contains]=L1&filters[$or][1][label_code][$contains]=L2
+/api/v1/archives/physical-locations?q=L1&filters[cabinet_id][$eq]=1
 ```
 
 Catatan penting:
 
-- Walau model `ArchivePhysicalLocation` punya relasi `archive`, `cabinet`, dan `rack`, filter relasi seperti `filters[cabinet][name]...` atau `filters[archive][title]...` belum tentu bekerja pada kode aktif bila model relasinya belum memakai `Filterable`.
+- Walau endpoint ini punya relasi `archive`, `cabinet`, dan `rack`, filter relasi seperti `filters[cabinet][name]...` atau `filters[archive][title]...` belum tentu bekerja pada kode aktif jika backend belum menyiapkan dukungan relasi tersebut.
 - Sort relasi tetap tersedia karena model `ArchivePhysicalLocation` memakai `Sortable`.
 
 ### Detail physical location per archive
@@ -545,12 +600,15 @@ GET /api/v1/events
 
 Perilaku:
 
-- Query dasar: `Event::with('user')->orderBy('created_at', 'desc')->filter()->sort()`.
+- Query dasar: `Event::search($q ?? '')`, lalu hasilnya masih bisa dipersempit dengan filter dan diurutkan dengan sort.
 - Jika `all=true`, response mengembalikan semua event tanpa pagination.
 - Jika `all` tidak dikirim atau `false`, endpoint memakai pagination.
 - `per_page` default `10`.
 - Jika hasil kosong, endpoint mengembalikan `404` dengan message `event tidak ditemukan`.
 - Filter/sort tidak valid akan diabaikan diam-diam karena `config('purity.silent') = true`.
+- Search dipakai untuk keyword umum.
+- Filter dipakai untuk syarat field yang lebih presisi.
+- Sort dipakai untuk urutan hasil akhir.
 
 Query:
 
@@ -558,8 +616,23 @@ Query:
 |---|---|---|---|
 | `all` | `boolean` | `false` | bila `true`, tanpa pagination |
 | `per_page` | `integer` | `10` | jumlah item per halaman saat pagination |
-| `sort` | `string` atau `array` | - | format Purity sort |
-| `filters` | `object` | - | format Purity filter |
+| `q` | `string` | - | keyword pencarian event |
+| `sort` | `string` atau `array` | - | query pengurutan hasil |
+| `filters` | `object` | - | query penyaringan field |
+
+### Search event
+
+Search `q` saat ini mencari pada field searchable model event:
+
+- `title`
+- `description`
+
+Contoh:
+
+```text
+/api/v1/events?q=wisuda
+/api/v1/events?q=rapat%20guru
+```
 
 ### Sort event
 
@@ -595,6 +668,7 @@ Contoh:
 /api/v1/events?sort=date:desc
 /api/v1/events?sort=user.name:asc
 /api/v1/events?sort[]=status:asc&sort[]=date:desc
+/api/v1/events?q=wisuda&sort=date:desc
 ```
 
 ### Filter event
@@ -634,11 +708,12 @@ Contoh:
 /api/v1/events?filters[title][$contains]=rapat
 /api/v1/events?filters[date][$between][0]=2026-04-01&filters[date][$between][1]=2026-04-30
 /api/v1/events?filters[$or][0][status][$eq]=ongoing&filters[$or][1][status][$eq]=done
+/api/v1/events?q=rapat&filters[status][$eq]=ongoing
 ```
 
 Catatan penting:
 
-- Walau model `Event` punya relasi `user` dan `archives`, filter relasi `filters[user][name]...` atau `filters[archives][title]...` belum tentu bekerja pada kode aktif bila model relasinya belum memakai `Filterable`.
+- Walau endpoint ini punya relasi `user` dan `archives`, filter relasi `filters[user][name]...` atau `filters[archives][title]...` belum tentu bekerja pada kode aktif jika backend belum menyiapkan dukungan relasi tersebut.
 - Sort relasi tetap tersedia karena model `Event` memakai `Sortable`.
 
 ## 8. Create Event
@@ -853,13 +928,12 @@ Query:
 
 | Key | Tipe | Default | Keterangan |
 |---|---|---|---|
-| `q` | `string` | - | cari user berdasarkan index Scout |
+| `q` | `string` | - | keyword pencarian user |
 | `role` | `string` | - | filter exact role, mis. `admin` atau `guru` |
 
 Perilaku:
 
 - Jika `q` tidak dikirim, endpoint mengembalikan pagination user biasa, 10 item per halaman.
-- Endpoint memakai `User::search($q ?? '')` dari Laravel Scout untuk query pencarian.
 - Jika `q` dikirim, endpoint mencari pada field `name`, `username`, `subject`, dan `position`.
 - Jika `role` dikirim, endpoint memfilter exact match pada kolom `role`.
 - `q` dan filter role bisa dipakai bersamaan.

@@ -39,11 +39,12 @@ class ArchivePhysicalLocationController extends Controller
     }
 
     public function index(Request $request)
-    {
+    {   
+        $q = $request->query('q');
         if ($request->boolean('all')) {
-            $physicalLocations = ArchivePhysicalLocation::with(['archive.files', 'cabinet', 'rack'])->filter()->sort()->get();
+            $physicalLocations = ArchivePhysicalLocation::search($q ?? '')->query(fn ($query) => $query->with(['archive.files', 'cabinet', 'rack'])->filter()->sort())->get();
         } else {
-            $physicalLocations = ArchivePhysicalLocation::with(['archive.files', 'cabinet', 'rack'])->filter()->sort()->paginate(10);
+            $physicalLocations = ArchivePhysicalLocation::search($q ?? '')->query(fn ($query) => $query->with(['archive.files', 'cabinet', 'rack'])->filter()->sort())->paginate(10);
         }
 
         if (empty($physicalLocations)) {
