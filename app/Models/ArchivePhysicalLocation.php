@@ -2,13 +2,18 @@
 
 namespace App\Models;
 
+use Abbasudo\Purity\Traits\Filterable;
+use Abbasudo\Purity\Traits\Sortable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ArchivePhysicalLocation extends Model
 {
-    use HasFactory;
+    use HasFactory, Sortable, Filterable {
+        Sortable::getTableColumns insteadof Filterable;
+        Sortable::realName insteadof Filterable;
+    }
 
     protected $fillable = [
         'archive_id',

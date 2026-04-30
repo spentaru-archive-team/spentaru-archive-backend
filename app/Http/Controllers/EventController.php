@@ -12,13 +12,20 @@ class EventController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = Event::with('user')
-            ->orderBy('created_at', 'desc');
+            ->orderBy('created_at', 'desc')->filter()->sort();
 
         if ($request->boolean('all')) {
             $events = $query->get();
         } else {
             $perPage = $request->query('per_page', 10);
             $events = $query->paginate($perPage);
+        }
+
+        if (empty($events[0])) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'event tidak ditemukan',
+            ], 404);
         }
 
         return response()->json([

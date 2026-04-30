@@ -56,7 +56,7 @@ http://localhost:8000/api/v1
 
 | Method | Endpoint | Auth | Keterangan |
 |---|---|---|---|
-| `GET` | `/events` | Ya | List event |
+| `GET` | `/events` | Ya | List event, mendukung `all`, `per_page`, Purity direct filter + sort |
 | `GET` | `/events/{id}` | Ya | Detail event |
 | `POST` | `/events` | Admin | Create event |
 | `PUT` | `/events/{id}` | Admin | Update event |
@@ -372,23 +372,115 @@ Mengembalikan semua archive yang belum punya relasi `physicalLocation`.
 GET /api/v1/archives/physical-locations
 ```
 
+Perilaku:
+
+- Query dasar: `ArchivePhysicalLocation::with(['archive.files', 'cabinet', 'rack'])->filter()->sort()`.
+- Jika `all=true`, response mengembalikan semua physical location tanpa pagination.
+- Jika `all` tidak dikirim atau `false`, endpoint memakai pagination `10` item per halaman.
+- Relasi yang dimuat: `archive.files`, `cabinet`, `rack`.
+- Filter/sort tidak valid akan diabaikan diam-diam karena `config('purity.silent') = true`.
+
 Query:
 
 | Key | Tipe | Default | Keterangan |
 |---|---|---|---|
 | `all` | `boolean` | `false` | bila `true`, tanpa pagination |
+| `sort` | `string` atau `array` | - | format Purity sort |
+| `filters` | `object` | - | format Purity filter |
 
-Relasi yang dimuat:
+### Sort physical location
 
-- `archive.files`
-- `cabinet`
-- `rack`
+Format:
+
+```text
+?sort=field
+?sort=field:asc
+?sort=field:desc
+?sort[]=field_a:desc&sort[]=field_b:asc
+```
+
+Semua kolom physical location yang bisa di-sort langsung:
+
+- `id`
+- `archive_id`
+- `cabinet_id`
+- `rack_id`
+- `slot_number`
+- `label_code`
+- `notes`
+- `created_at`
+- `updated_at`
+- Versi qualified juga diterima, mis. `archive_physical_locations.slot_number:asc`.
+
+Sort relasi 1 hop yang tersedia:
+
+- `archive.{id,event_id,title,year,notes,category_id,subcategory_id,status,retention_due_date,retention_status,retention_decided_at,retention_decided_by,retention_note,uploader,created_at,updated_at}`
+- `cabinet.{id,cabinet_number,name,created_at,updated_at}`
+- `rack.{id,cabinet_id,rack_number,capacity,used_capacity,created_at,updated_at}`
+
+Contoh:
+
+```text
+/api/v1/archives/physical-locations?sort=slot_number:asc
+/api/v1/archives/physical-locations?sort=cabinet.name:asc
+/api/v1/archives/physical-locations?sort[]=cabinet_id:asc&sort[]=slot_number:asc
+```
+
+### Filter physical location
+
+Format dasar:
+
+```text
+?filters[field][operator]=value
+```
+
+Operator yang aktif sama seperti endpoint archive:
+
+- `$eq`, `$eqc`, `$ne`
+- `$lt`, `$lte`, `$gt`, `$gte`
+- `$in`, `$notIn`
+- `$between`, `$notBetween`
+- `$contains`, `$containsc`, `$notContains`, `$notContainsc`
+- `$startsWith`, `$startsWithc`, `$endsWith`, `$endsWithc`
+- `$null`, `$notNull`
+- `$and`, `$or`
+
+Semua field physical location yang benar-benar bisa di-filter langsung saat ini:
+
+- `id`
+- `archive_id`
+- `cabinet_id`
+- `rack_id`
+- `slot_number`
+- `label_code`
+- `notes`
+- `created_at`
+- `updated_at`
+- Versi qualified juga diterima, mis. `filters[archive_physical_locations.label_code][$contains]=L1-`.
+
+Contoh:
+
+```text
+/api/v1/archives/physical-locations?filters[cabinet_id][$eq]=1
+/api/v1/archives/physical-locations?filters[slot_number][$between][0]=1&filters[slot_number][$between][1]=10
+/api/v1/archives/physical-locations?filters[$or][0][label_code][$contains]=L1&filters[$or][1][label_code][$contains]=L2
+```
+
+Catatan penting:
+
+- Walau model `ArchivePhysicalLocation` punya relasi `archive`, `cabinet`, dan `rack`, filter relasi seperti `filters[cabinet][name]...` atau `filters[archive][title]...` belum tentu bekerja pada kode aktif bila model relasinya belum memakai `Filterable`.
+- Sort relasi tetap tersedia karena model `ArchivePhysicalLocation` memakai `Sortable`.
 
 ### Detail physical location per archive
 
 ```http
 GET /api/v1/archives/{id}/physical-locations
 ```
+
+Perilaku:
+
+- Endpoint mencari archive berdasarkan `{id}`, lalu mengambil relasi `physicalLocation.cabinet` dan `physicalLocation.rack`.
+- Jika archive tidak punya physical location, endpoint mengembalikan `404` dengan message `Physical location tidak ditemukan`.
 
 ### Create physical location manual
 
@@ -407,8 +499,10 @@ Body:
 
 Perilaku:
 
+- Payload `notes_physical_location` dinormalisasi menjadi kolom `notes`.
 - `label_code` dibentuk otomatis dengan format `L{cabinet_id}-R{rack_id}-S{slot_number}`.
-- Bila archive sudah punya physical location, endpoint mengembalikan `422`.
+- Jika archive sudah punya physical location, endpoint mengembalikan `422` dengan message `Physical location archive sudah ada`.
+- Response sukses memuat relasi `cabinet` dan `rack`.
 
 ### Update physical location
 
@@ -423,13 +517,174 @@ Field partial update:
 - `slot_number`
 - `notes_physical_location`
 
+Perilaku:
+
+- Semua field memakai validasi `sometimes|required`, kecuali `notes_physical_location` yang `sometimes|nullable|string`.
+- Payload `notes_physical_location` dinormalisasi menjadi kolom `notes`.
+- `label_code` dihitung ulang dari kombinasi final `cabinet_id`, `rack_id`, dan `slot_number`, termasuk saat update partial.
+- Hanya field yang nilainya benar-benar berubah yang akan di-update.
+- Jika archive belum punya physical location, endpoint mengembalikan `404` dengan message `Physical location tidak ditemukan`.
+- Response sukses memuat relasi `cabinet` dan `rack`.
+
 ### Delete physical location
 
 ```http
 DELETE /api/v1/archives/{id}/physical-locations
 ```
 
-## 6. Retention
+Perilaku:
+
+- Endpoint menghapus relasi physical location milik archive.
+- Jika archive belum punya physical location, endpoint mengembalikan `404` dengan message `Physical location tidak ditemukan`.
+
+## 7. List Event
+
+```http
+GET /api/v1/events
+```
+
+Perilaku:
+
+- Query dasar: `Event::with('user')->orderBy('created_at', 'desc')->filter()->sort()`.
+- Jika `all=true`, response mengembalikan semua event tanpa pagination.
+- Jika `all` tidak dikirim atau `false`, endpoint memakai pagination.
+- `per_page` default `10`.
+- Jika hasil kosong, endpoint mengembalikan `404` dengan message `event tidak ditemukan`.
+- Filter/sort tidak valid akan diabaikan diam-diam karena `config('purity.silent') = true`.
+
+Query:
+
+| Key | Tipe | Default | Keterangan |
+|---|---|---|---|
+| `all` | `boolean` | `false` | bila `true`, tanpa pagination |
+| `per_page` | `integer` | `10` | jumlah item per halaman saat pagination |
+| `sort` | `string` atau `array` | - | format Purity sort |
+| `filters` | `object` | - | format Purity filter |
+
+### Sort event
+
+Format:
+
+```text
+?sort=field
+?sort=field:asc
+?sort=field:desc
+?sort[]=field_a:desc&sort[]=field_b:asc
+```
+
+Semua kolom event yang bisa di-sort langsung:
+
+- `id`
+- `title`
+- `user_id`
+- `description`
+- `date`
+- `status`
+- `created_at`
+- `updated_at`
+- Versi qualified juga diterima, mis. `events.title:asc`.
+
+Sort relasi 1 hop yang tersedia:
+
+- `user.{id,name,subject,position,username,password,role,last_login_at,created_at,updated_at}`
+- `archives.{id,event_id,title,year,notes,category_id,subcategory_id,status,retention_due_date,retention_status,retention_decided_at,retention_decided_by,retention_note,uploader,created_at,updated_at}`
+
+Contoh:
+
+```text
+/api/v1/events?sort=date:desc
+/api/v1/events?sort=user.name:asc
+/api/v1/events?sort[]=status:asc&sort[]=date:desc
+```
+
+### Filter event
+
+Format dasar:
+
+```text
+?filters[field][operator]=value
+```
+
+Operator yang aktif sama seperti endpoint archive:
+
+- `$eq`, `$eqc`, `$ne`
+- `$lt`, `$lte`, `$gt`, `$gte`
+- `$in`, `$notIn`
+- `$between`, `$notBetween`
+- `$contains`, `$containsc`, `$notContains`, `$notContainsc`
+- `$startsWith`, `$startsWithc`, `$endsWith`, `$endsWithc`
+- `$null`, `$notNull`
+- `$and`, `$or`
+
+Semua field event yang benar-benar bisa di-filter langsung saat ini:
+
+- `id`
+- `title`
+- `user_id`
+- `description`
+- `date`
+- `status`
+- `created_at`
+- `updated_at`
+- Versi qualified juga diterima, mis. `filters[events.title][$contains]=rapat`.
+
+Contoh:
+
+```text
+/api/v1/events?filters[title][$contains]=rapat
+/api/v1/events?filters[date][$between][0]=2026-04-01&filters[date][$between][1]=2026-04-30
+/api/v1/events?filters[$or][0][status][$eq]=ongoing&filters[$or][1][status][$eq]=done
+```
+
+Catatan penting:
+
+- Walau model `Event` punya relasi `user` dan `archives`, filter relasi `filters[user][name]...` atau `filters[archives][title]...` belum tentu bekerja pada kode aktif bila model relasinya belum memakai `Filterable`.
+- Sort relasi tetap tersedia karena model `Event` memakai `Sortable`.
+
+## 8. Create Event
+
+```http
+POST /api/v1/events
+```
+
+Body:
+
+| Key | Tipe | Wajib | Aturan |
+|---|---|---|---|
+| `title` | `string` | Ya | max `255` |
+| `description` | `string` | Tidak | nullable |
+| `user_id` | `integer` | Ya | `exists:users,id` |
+| `date` | `date` | Ya | format tanggal valid |
+| `status` | `string` | Ya | `ongoing` atau `done` |
+
+Response sukses memuat relasi `user`.
+
+## 9. Update Event
+
+```http
+PUT /api/v1/events/{id}
+```
+
+Body mendukung partial update.
+
+Aturan:
+
+- `title`, `user_id`, `date`, dan `status` divalidasi dengan `sometimes|required`.
+- `description` boleh `nullable|string`.
+- Response sukses memuat relasi `user`.
+
+## 10. Delete Event
+
+```http
+DELETE /api/v1/events/{id}
+```
+
+Perilaku:
+
+- Event tidak bisa dihapus jika masih punya archive.
+- Jika masih punya archive, endpoint mengembalikan `422` dengan message `Tidak dapat menghapus event yang memiliki arsip`.
+
+## 11. Retention
 
 ### Arsip siap pemusnahan
 
@@ -460,7 +715,7 @@ Perilaku:
 - Jika `retention_status=destroyed`, file fisik arsip di disk `public` dihapus dan row `archive_files` ikut dihapus.
 - Jika `retention_status=active`, `retention_due_date` boleh diperbarui dari payload.
 
-## 7. AI Gateway
+## 12. AI Gateway
 
 Semua endpoint AI gateway memakai auth Sanctum dan dapat meneruskan `trace_id` atau header `X-Trace-Id`.
 
