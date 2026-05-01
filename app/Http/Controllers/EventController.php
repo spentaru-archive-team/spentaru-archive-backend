@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Event;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 class EventController extends Controller
@@ -104,5 +105,26 @@ class EventController extends Controller
             'status' => 'success',
             'message' => 'sukses menghapus event',
         ]);
+    }
+
+
+    public function getPendingUploads(Request $request) {
+        $user_id = Auth::user()->id;
+        $query = Event::with('user')->where('user_id', null, $user_id)->where('softfile_status', 'pending_upload');
+
+        if ($request->boolean('all')) {
+            $data = $query->get();
+        } else {
+            $data = $query->paginate(10);
+        }
+
+        return response()->json(
+            [
+                'status' => 'success',
+                'message' => 'sukses ambil event yang masih belum uploaded',
+                'data' => $data,
+            ],
+            200,
+        );
     }
 }

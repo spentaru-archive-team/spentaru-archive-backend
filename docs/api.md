@@ -66,6 +66,7 @@ http://localhost:8000/api/v1
 | Method | Endpoint | Auth | Keterangan |
 |---|---|---|---|
 | `GET` | `/events` | Ya | List event, mendukung pencarian `q`, `all`, `per_page`, filter, dan sort |
+| `GET` | `/events/pending-uploads` | Ya | List event dengan `softfile_status=pending_upload`, memuat relasi `user` |
 | `GET` | `/events/{id}` | Ya | Detail event |
 | `POST` | `/events` | Admin | Create event |
 | `PUT` | `/events/{id}` | Admin | Update event |
@@ -715,7 +716,62 @@ Catatan penting:
 - Walau endpoint ini punya relasi `user` dan `archives`, filter relasi `filters[user][name]...` atau `filters[archives][title]...` belum tentu bekerja pada kode aktif jika backend belum menyiapkan dukungan relasi tersebut.
 - Sort relasi tetap tersedia karena model `Event` memakai `Sortable`.
 
-## 8. Create Event
+## 8. List Event Pending Upload
+
+```http
+GET /api/v1/events/pending-uploads
+```
+
+Perilaku:
+
+- Endpoint memakai auth Sanctum.
+- Query memuat relasi `user`.
+- Endpoint hanya mengambil event dengan `softfile_status = pending_upload`.
+- Jika `all=true`, response mengembalikan semua data tanpa pagination.
+- Jika `all` tidak dikirim atau `false`, endpoint memakai pagination default `10` item per halaman.
+- Endpoint saat ini tidak memakai query `per_page`.
+- Jika tidak ada data, endpoint tetap mengembalikan `200` dengan `data` kosong sesuai bentuk hasil query Laravel.
+
+Query:
+
+| Key | Tipe | Default | Keterangan |
+|---|---|---|---|
+| `all` | `boolean` | `false` | bila `true`, tanpa pagination |
+
+Response sukses:
+
+```json
+{
+  "status": "success",
+  "message": "sukses ambil event yang masih belum uploaded",
+  "data": {
+    "current_page": 1,
+    "data": [
+      {
+        "id": 1,
+        "title": "Rapat Guru",
+        "user_id": 2,
+        "description": "Persiapan semester baru",
+        "date": "2026-04-20T00:00:00.000000Z",
+        "status": "ongoing",
+        "softfile_status": "pending_upload",
+        "created_at": "2026-04-20T08:00:00.000000Z",
+        "updated_at": "2026-04-20T08:00:00.000000Z",
+        "user": {
+          "id": 2,
+          "name": "Guru Bahasa Indonesia",
+          "username": "guruindo",
+          "role": "guru",
+          "created_at": "2026-04-11T16:50:44.000000Z",
+          "updated_at": "2026-04-11T16:50:44.000000Z"
+        }
+      }
+    ]
+  }
+}
+```
+
+## 9. Create Event
 
 ```http
 POST /api/v1/events
@@ -738,7 +794,7 @@ Catatan:
 - `softfile_status` tidak diinput manual pada endpoint event.
 - Nilainya otomatis `pending_upload` atau `uploaded` berdasarkan ada tidaknya archive pada event yang memiliki relasi `files`.
 
-## 9. Update Event
+## 10. Update Event
 
 ```http
 PUT /api/v1/events/{id}
@@ -752,7 +808,7 @@ Aturan:
 - `description` boleh `nullable|string`.
 - Response sukses memuat relasi `user`.
 
-## 10. Delete Event
+## 11. Delete Event
 
 ```http
 DELETE /api/v1/events/{id}
@@ -763,7 +819,7 @@ Perilaku:
 - Event tidak bisa dihapus jika masih punya archive.
 - Jika masih punya archive, endpoint mengembalikan `422` dengan message `Tidak dapat menghapus event yang memiliki arsip`.
 
-## 11. Retention
+## 12. Retention
 
 ### Arsip siap pemusnahan
 
@@ -794,7 +850,7 @@ Perilaku:
 - Jika `retention_status=destroyed`, file fisik arsip di disk `public` dihapus dan row `archive_files` ikut dihapus.
 - Jika `retention_status=active`, `retention_due_date` boleh diperbarui dari payload.
 
-## 12. AI Gateway
+## 13. AI Gateway
 
 Semua endpoint AI gateway memakai auth Sanctum dan dapat meneruskan `trace_id` atau header `X-Trace-Id`.
 
@@ -836,7 +892,7 @@ Body:
 |---|---|---|---|
 | `file` | `file` | Ya | `pdf` |
 
-## 8. Archive Storage Rules
+## 14. Archive Storage Rules
 
 Semua endpoint `archive-storage-rules` memakai middleware `auth:sanctum` dan `admin`.
 
@@ -920,7 +976,7 @@ Perilaku:
 
 - Response hanya mengembalikan `status` dan `message`.
 
-## 9. User Notes
+## 15. User Notes
 
 ### List user
 

@@ -101,8 +101,8 @@ Route::prefix('v1')->group(function () {
 
     Route::prefix('events')->middleware('auth:sanctum')->group(function () {
         Route::get('/', [EventController::class, 'index']);
+        Route::get('/pending-uploads', [EventController::class, 'getPendingUploads']);
         Route::get('/{id}', [EventController::class, 'show']);
-        
         Route::middleware(['auth:sanctum', 'admin'])->group(function () {
             Route::post('/', [EventController::class, 'store']);
             Route::put('/{id}', [EventController::class, 'update']);
@@ -188,5 +188,6 @@ Route::prefix('v1')->group(function () {
             Route::delete('/{id}', [ArchiveStorageRuleController::class, 'destroy']);
         });
     });
+
+
 });
-// });
