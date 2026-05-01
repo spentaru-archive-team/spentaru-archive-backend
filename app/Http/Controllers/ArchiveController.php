@@ -8,10 +8,12 @@ use App\Http\Requests\UpdateArchiveRequest;
 use App\Models\Archive;
 use App\Models\Subcategory;
 use App\Services\ArchiveStorageService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str as SupportStr;
 use Illuminate\Support\Str;
 
 class ArchiveController extends Controller
@@ -40,6 +42,108 @@ class ArchiveController extends Controller
         return Str::startsWith($fileUrl, '/storage/') ? Str::after($fileUrl, '/storage/') : ltrim($fileUrl, '/');
     }
 
+    private function normalizedSorts(Request $request): array
+    {
+        $sort = $request->query('sort', []);
+
+        if (is_string($sort) && $sort !== '') {
+            return [$sort];
+        }
+
+        if (! is_array($sort)) {
+            return [];
+        }
+
+        return array_values(array_filter($sort, fn ($value) => is_string($value) && $value !== ''));
+    }
+
+    private function hasCategoryNameSort(array $sorts): bool
+    {
+        foreach ($sorts as $sort) {
+            [$column] = array_pad(explode(':', $sort, 2), 2, 'asc');
+            $normalizedColumn = trim($column);
+
+            if (in_array($normalizedColumn, ['category.name', 'archive_categories.name'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function applyArchiveSearch(Builder $query, string $q): void
+    {
+        $query->where(function (Builder $searchQuery) use ($q) {
+            $searchQuery->where('archives.title', 'like', "%{$q}%")
+                ->orWhere('archives.notes', 'like', "%{$q}%")
+                ->orWhere('archives.year', 'like', "%{$q}%")
+                ->orWhereHas('category', function (Builder $categoryQuery) use ($q) {
+                    $categoryQuery->where('name', 'like', "%{$q}%");
+                })
+                ->orWhereHas('subcategory', function (Builder $subcategoryQuery) use ($q) {
+                    $subcategoryQuery->where('name', 'like', "%{$q}%");
+                })
+                ->orWhereHas('event', function (Builder $eventQuery) use ($q) {
+                    $eventQuery->where('title', 'like', "%{$q}%");
+                });
+        });
+    }
+
+    private function applyArchiveSorts(Builder $query, array $sorts): void
+    {
+        $allowedDirectSorts = [
+            'id',
+            'event_id',
+            'title',
+            'year',
+            'notes',
+            'category_id',
+            'subcategory_id',
+            'retention_due_date',
+            'retention_status',
+            'retention_decided_at',
+            'retention_decided_by',
+            'retention_note',
+            'uploader',
+            'created_at',
+            'updated_at',
+        ];
+
+        $joinedCategory = false;
+        $appliedSort = false;
+
+        foreach ($sorts as $sort) {
+            [$column, $direction] = array_pad(explode(':', $sort, 2), 2, 'asc');
+            $normalizedColumn = trim($column);
+            $normalizedDirection = strtolower(trim($direction)) === 'desc' ? 'desc' : 'asc';
+
+            if (in_array($normalizedColumn, ['category.name', 'archive_categories.name'], true)) {
+                if (! $joinedCategory) {
+                    $query->leftJoin('archive_categories as category_sort', 'category_sort.id', '=', 'archives.category_id')
+                        ->select('archives.*');
+                    $joinedCategory = true;
+                }
+
+                $query->orderBy('category_sort.name', $normalizedDirection);
+                $appliedSort = true;
+                continue;
+            }
+
+            $directColumn = SupportStr::startsWith($normalizedColumn, 'archives.')
+                ? SupportStr::after($normalizedColumn, 'archives.')
+                : $normalizedColumn;
+
+            if (in_array($directColumn, $allowedDirectSorts, true)) {
+                $query->orderBy("archives.{$directColumn}", $normalizedDirection);
+                $appliedSort = true;
+            }
+        }
+
+        if (! $appliedSort) {
+            $query->orderBy('archives.id', 'desc');
+        }
+    }
+
     public function archivesWithoutLocation()
     {
         $archives = Archive::doesntHave('physicalLocation')->get();
@@ -56,14 +160,31 @@ class ArchiveController extends Controller
      */
     public function index(Request $request)
     {
-        $q = $request->query('q');
-        $archives = Archive::search($q ?? '')->query(fn ($query) => $query->with(['event',
-            'category',
-            'subcategory',
-            'files',
-            'uploader',
-            'physicalLocation.cabinet',
-            'physicalLocation.rack',])->filter()->sort())
+        $q = trim((string) $request->query('q', ''));
+        $sorts = $this->normalizedSorts($request);
+        $hasCategoryNameSort = $this->hasCategoryNameSort($sorts);
+
+        $archives = Archive::search('')->query(function ($query) use ($q, $sorts, $hasCategoryNameSort) {
+            $query->with([
+                'event',
+                'category',
+                'subcategory',
+                'files',
+                'uploader',
+                'physicalLocation.cabinet',
+                'physicalLocation.rack',
+        ])->filter();
+
+            if (filled($q)) {
+                $this->applyArchiveSearch($query, $q);
+            }
+
+            if ($hasCategoryNameSort) {
+                $this->applyArchiveSorts($query, $sorts);
+            } else {
+                $query->sort();
+            }
+        })
             ->paginate(10);
 
         if (empty($archives[0])) {

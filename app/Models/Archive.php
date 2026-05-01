@@ -47,6 +47,7 @@ class Archive extends Model
         return [
             'title' => $this->title,
             'notes' => $this->notes,
+            'year' => $this->year,
         ];
     }
 

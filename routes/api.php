@@ -18,52 +18,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
-// endpoint sementara
-Route::middleware('web')->group(function () {
-    Route::post('/v1/auth/devlogin', function (Request $request) {
-        $credentials = $request->validate([
-            'username' => ['required'],
-            'password' => ['required'],
-        ]);
-
-        if (! Auth::attempt($credentials)) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Invalid credentials',
-            ], 401);
-        }
-
-        $request->session()->regenerate();
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Login successful',
-            'data' => $request->user(),
-        ]);
-    })->withoutMiddleware([PreventRequestForgery::class]);
-
-    Route::middleware('auth:sanctum')->get('/v1/auth/devme', function (Request $request) {
-        return response()->json([
-            'status' => 'success',
-            'data' => $request->user(),
-        ]);
-    });
-
-    Route::middleware('auth:sanctum')->post('/v1/auth/devlogout', function (Request $request) {
-        Auth::guard('web')->logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Logged out',
-        ]);
-    })->withoutMiddleware([PreventRequestForgery::class]);
-});
-
-// ENDPOINT SEMENTARA END
-
-// Route::middleware('web')->group(function() {
 Route::prefix('v1')->group(function () {
     Route::prefix('auth')->group(function () {
         Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');

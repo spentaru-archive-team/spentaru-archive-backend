@@ -180,10 +180,18 @@ Kemungkinan error:
 GET /api/v1/archives
 ```
 
+Identitas ID:
+
+- `data.data[].id` adalah `archives.id`.
+- `data.data[].event_id` adalah `events.id`.
+- `data.data[].category_id` adalah `archive_categories.id`.
+- `data.data[].subcategory_id` adalah `subcategories.id`.
+- Jika relasi `physicalLocation` ikut termuat, `physicalLocation.id` adalah `archive_physical_locations.id` dan nilainya berbeda dari `archives.id`.
+
 Perilaku:
 
 - Endpoint selalu pagination `10` item per halaman.
-- Query dijalankan lewat `Archive::search($q ?? '')`, lalu hasilnya masih bisa dipersempit dengan filter dan diurutkan dengan sort.
+- Query dijalankan lewat `Archive::search(...)` untuk field utama archive, lalu ditambah pencarian relasi tertentu dan bisa dipersempit dengan filter serta diurutkan dengan sort.
 - Jika hasil page kosong, endpoint mengembalikan `404` dengan message `Arsip tidak ditemukan`.
 - Sort/filter tidak valid akan diabaikan diam-diam karena `config('purity.silent') = true`.
 - Search dipakai untuk keyword umum.
@@ -200,16 +208,22 @@ Query:
 
 ### Search archive
 
-Search `q` saat ini mencari pada field searchable model archive:
+Search `q` saat ini mencari pada field dan relasi berikut:
 
 - `title`
 - `notes`
+- `year`
+- `category.name`
+- `subcategory.name`
+- `event.title`
 
 Contoh:
 
 ```text
 /api/v1/archives?q=rapor
 /api/v1/archives?q=surat%20keluar
+/api/v1/archives?q=keuangan
+/api/v1/archives?q=wisuda
 ```
 
 ### Query Sort
@@ -266,6 +280,7 @@ Contoh:
 /api/v1/archives?sort=category.name:asc
 /api/v1/archives?sort[]=retention_due_date:asc&sort[]=title:desc
 /api/v1/archives?q=rapor&sort=year:desc
+/api/v1/archives?q=keuangan&sort=category.name:asc
 ```
 
 ### Query Filter
@@ -345,8 +360,9 @@ Catatan penting:
 
 - Pada kode aktif sekarang, filter relasi `filters[category][name]...`, `filters[event][title]...`, `filters[physicalLocation]...`, dan nested relation lain belum bekerja. Query seperti itu saat ini diabaikan diam-diam oleh backend.
 - Jadi daftar filter yang benar-benar aktif saat ini adalah semua kolom langsung tabel `archives` dengan semua operator di atas.
+- Jika perlu filter kategori, gunakan `category_id` karena filter berdasarkan `category.name` belum didukung pada kode aktif.
 - Jika nanti ingin mengaktifkan filter relasi, backend perlu menambahkan dukungan eksplisit pada model relasi yang terkait.
-- Sort relasi tetap aktif walaupun filter relasi belum aktif.
+- Sort relasi tetap aktif walaupun filter relasi belum aktif. Untuk endpoint archive, `sort=category.name:asc|desc` sudah ditangani eksplisit dan aman dipakai bersama `q`.
 
 ## 3. Create Archive
 
@@ -404,6 +420,14 @@ Mengembalikan semua archive yang belum punya relasi `physicalLocation`.
 GET /api/v1/archives/physical-locations
 ```
 
+Identitas ID:
+
+- `data.data[].id` adalah `archive_physical_locations.id`.
+- `data.data[].archive_id` adalah `archives.id`.
+- `data.data[].cabinet_id` adalah `cabinets.id`.
+- `data.data[].rack_id` adalah `racks.id`.
+- Endpoint ini mengembalikan resource physical location, bukan resource archive.
+
 Perilaku:
 
 - Query dasar: `ArchivePhysicalLocation::search($q ?? '')`, lalu hasilnya masih bisa dipersempit dengan filter dan diurutkan dengan sort.
@@ -426,16 +450,21 @@ Query:
 
 ### Search physical location
 
-Search `q` saat ini mencari pada field searchable model physical location:
+Search `q` saat ini mencari pada field dan relasi berikut:
 
 - `label_code`
 - `notes`
+- `archive.title`
+- `cabinet.name`
+- `cabinet.cabinet_number`
 
 Contoh:
 
 ```text
 /api/v1/archives/physical-locations?q=L1-R2
 /api/v1/archives/physical-locations?q=lemari%20depan
+/api/v1/archives/physical-locations?q=Arsip%20Kelulusan
+/api/v1/archives/physical-locations?q=Lemari%20A
 ```
 
 ### Sort physical location
@@ -529,9 +558,16 @@ Catatan penting:
 GET /api/v1/archives/{id}/physical-locations
 ```
 
+Arti parameter:
+
+- `{id}` pada endpoint ini adalah `archives.id`.
+- Endpoint ini bukan menerima `archive_physical_locations.id`.
+- Contoh: jika archive punya `id=25` dan row physical location punya `id=7`, URL yang benar adalah `/api/v1/archives/25/physical-locations`.
+
 Perilaku:
 
 - Endpoint mencari archive berdasarkan `{id}`, lalu mengambil relasi `physicalLocation.cabinet` dan `physicalLocation.rack`.
+- Jika `{id}` tidak ada di tabel `archives`, Laravel mengembalikan `404`.
 - Jika archive tidak punya physical location, endpoint mengembalikan `404` dengan message `Physical location tidak ditemukan`.
 
 ### Create physical location manual
@@ -539,6 +575,12 @@ Perilaku:
 ```http
 POST /api/v1/archives/{id}/physical-locations
 ```
+
+Arti parameter:
+
+- `{id}` pada endpoint ini adalah `archives.id`.
+- Frontend tidak perlu mengirim `archive_id` di body.
+- Nilai `archive_id` diambil otomatis dari archive parent pada URL.
 
 Body:
 
@@ -553,6 +595,9 @@ Perilaku:
 
 - Payload `notes_physical_location` dinormalisasi menjadi kolom `notes`.
 - `label_code` dibentuk otomatis dengan format `L{cabinet_id}-R{rack_id}-S{slot_number}`.
+- `cabinet_id` harus mengacu ke `cabinets.id` yang valid.
+- `rack_id` harus mengacu ke `racks.id` yang valid.
+- Jika `{id}` tidak ada di tabel `archives`, Laravel mengembalikan `404`.
 - Jika archive sudah punya physical location, endpoint mengembalikan `422` dengan message `Physical location archive sudah ada`.
 - Response sukses memuat relasi `cabinet` dan `rack`.
 
@@ -561,6 +606,12 @@ Perilaku:
 ```http
 PUT /api/v1/archives/{id}/physical-locations
 ```
+
+Arti parameter:
+
+- `{id}` pada endpoint ini tetap `archives.id`.
+- Endpoint tidak menerima `archive_physical_locations.id` sebagai path parameter.
+- Frontend tidak perlu mengirim `archive_id` atau `physical_location_id` di body.
 
 Field partial update:
 
@@ -575,6 +626,7 @@ Perilaku:
 - Payload `notes_physical_location` dinormalisasi menjadi kolom `notes`.
 - `label_code` dihitung ulang dari kombinasi final `cabinet_id`, `rack_id`, dan `slot_number`, termasuk saat update partial.
 - Hanya field yang nilainya benar-benar berubah yang akan di-update.
+- Jika `{id}` tidak ada di tabel `archives`, Laravel mengembalikan `404`.
 - Jika archive belum punya physical location, endpoint mengembalikan `404` dengan message `Physical location tidak ditemukan`.
 - Response sukses memuat relasi `cabinet` dan `rack`.
 
@@ -584,10 +636,21 @@ Perilaku:
 DELETE /api/v1/archives/{id}/physical-locations
 ```
 
+Arti parameter:
+
+- `{id}` pada endpoint ini adalah `archives.id`.
+- Endpoint menghapus physical location milik archive tersebut, bukan menghapus berdasarkan `archive_physical_locations.id`.
+
 Perilaku:
 
 - Endpoint menghapus relasi physical location milik archive.
+- Jika `{id}` tidak ada di tabel `archives`, Laravel mengembalikan `404`.
 - Jika archive belum punya physical location, endpoint mengembalikan `404` dengan message `Physical location tidak ditemukan`.
+
+Catatan untuk frontend:
+
+- Jika sumber data berasal dari list `/api/v1/archives/physical-locations`, jangan kirim `data.id` ke endpoint nested ini.
+- Untuk endpoint nested `/api/v1/archives/{id}/physical-locations`, gunakan `data.archive_id` dari hasil list physical location, atau gunakan `archive.id` dari endpoint archive.
 
 ## 7. List Event
 

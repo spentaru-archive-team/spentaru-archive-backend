@@ -42,9 +42,31 @@ class ArchivePhysicalLocationController extends Controller
     {   
         $q = $request->query('q');
         if ($request->boolean('all')) {
-            $physicalLocations = ArchivePhysicalLocation::search($q ?? '')->query(fn ($query) => $query->with(['archive.files', 'cabinet', 'rack'])->filter()->sort())->get();
+            $physicalLocations = ArchivePhysicalLocation::search($q ?? '')->query(function ($query) use ($q) {
+                $query->with(['archive.files', 'cabinet', 'rack'])->filter()->sort();
+
+                if (filled($q)) {
+                    $query->orWhereHas('archive', function ($archiveQuery) use ($q) {
+                        $archiveQuery->where('title', 'like', "%{$q}%");
+                    })->orWhereHas('cabinet', function ($cabinetQuery) use ($q) {
+                        $cabinetQuery->where('name', 'like', "%{$q}%")
+                            ->orWhere('cabinet_number', 'like', "%{$q}%");
+                    });
+                }
+            })->get();
         } else {
-            $physicalLocations = ArchivePhysicalLocation::search($q ?? '')->query(fn ($query) => $query->with(['archive.files', 'cabinet', 'rack'])->filter()->sort())->paginate(10);
+            $physicalLocations = ArchivePhysicalLocation::search($q ?? '')->query(function ($query) use ($q) {
+                $query->with(['archive.files', 'cabinet', 'rack'])->filter()->sort();
+
+                if (filled($q)) {
+                    $query->orWhereHas('archive', function ($archiveQuery) use ($q) {
+                        $archiveQuery->where('title', 'like', "%{$q}%");
+                    })->orWhereHas('cabinet', function ($cabinetQuery) use ($q) {
+                        $cabinetQuery->where('name', 'like', "%{$q}%")
+                            ->orWhere('cabinet_number', 'like', "%{$q}%");
+                    });
+                }
+            })->paginate(10);
         }
 
         if (empty($physicalLocations)) {
@@ -64,7 +86,7 @@ class ArchivePhysicalLocationController extends Controller
 
     public function show(string $id)
     {
-        $archive = Archive::with('physicalLocation.cabinet', 'physicalLocation.rack')->findOrFail($id);
+        $archive = Archive::with(['physicalLocation.cabinet', 'physicalLocation.rack'])->findOrFail($id);
         $physicalLocation = $archive->physicalLocation;
 
         if (! $physicalLocation) {
@@ -102,7 +124,7 @@ class ArchivePhysicalLocationController extends Controller
         return response()->json([
             'status' => 'success',
             'message' => 'sukses menyimpan physical location archive',
-            'data' => $physicalLocation->load('cabinet', 'rack'),
+            'data' => $physicalLocation->load(['cabinet', 'rack']),
         ], 201);
     }
 
