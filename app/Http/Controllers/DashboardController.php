@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Archive;
-use App\Models\Subcategory;
 use App\Models\ArchiveCategory;
+use App\Models\Subcategory;
 use App\Models\User;
 
 class DashboardController extends Controller
@@ -22,7 +22,7 @@ class DashboardController extends Controller
 
         // total subkategori arsip
         $archive_subcategory_total = Subcategory::count();
-        
+
         // total user
         $user_total = User::count();
 
@@ -30,7 +30,7 @@ class DashboardController extends Controller
             'archive_total' => $archive_total,
             'archive_category_total' => $archive_category_total,
             'archive_subcategory_total' => $archive_subcategory_total,
-            'user_total' => $user_total
+            'user_total' => $user_total,
         ];
 
         return response()->json([

@@ -28,8 +28,8 @@ class UpdateUserRequest extends FormRequest
             'subject' => 'string|max:200|required',
             'position' => 'string|max:200|required',
             'username' => 'string|max:120|required',
-            'password' => ['string','min:8', 'nullable', Password::min(8)->letters()->numbers()->mixedCase()],
-            'role' => 'required|in:guru,admin|required'
+            'password' => ['string', 'min:8', 'nullable', Password::min(8)->letters()->numbers()->mixedCase()],
+            'role' => 'required|in:guru,admin|required',
         ];
     }
 }

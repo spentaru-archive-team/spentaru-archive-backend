@@ -72,7 +72,7 @@ class CategoryController extends Controller
         $category = ArchiveCategory::findOrFail($id);
 
         $validated = $request->validate([
-            'name' => 'sometimes|required|string|max:255|unique:archive_categories,name,' . $id,
+            'name' => 'sometimes|required|string|max:255|unique:archive_categories,name,'.$id,
             'description' => 'nullable|string',
             'subcategories' => 'nullable|array',
             'subcategories.*.id' => 'sometimes|integer|exists:subcategories,id',

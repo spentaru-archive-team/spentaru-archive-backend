@@ -16,6 +16,7 @@ Backend Laravel 13 untuk sistem arsip sekolah dengan auth Sanctum stateful berba
 - Auth API berbasis session cookie Sanctum untuk SPA atau first-party frontend
 - CRUD arsip + upload file ke disk `public`
 - Auto-assign lokasi fisik arsip via `ArchiveStorageService`
+- Tracking used_capacity rack: otomatis increment/decrement saat archive dibuat, dihapus, dipindahkan, atau keputusan retensi `destroyed`
 - CRUD rule penempatan arsip via `archive-storage-rules`
 - CRUD master data: event, kategori, subkategori, lemari, rak, user
 - Search text via query `q` pada endpoint list `users`, `archives`, `events`, dan `archives/physical-locations`
@@ -68,8 +69,6 @@ Untuk frontend SPA atau first-party:
 1. Panggil `GET /sanctum/csrf-cookie`
 2. Login ke `POST /api/v1/auth/login`
 3. Kirim cookie session + header CSRF untuk request terproteksi berikutnya
-
-Endpoint debug sementara juga ada di `api/v1/auth/devlogin`, `api/v1/auth/devme`, dan `api/v1/auth/devlogout`.
 
 ## Command Penting
 

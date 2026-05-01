@@ -6,6 +6,7 @@ use App\Http\Requests\StoreArchivePhysicalLocationRequest;
 use App\Http\Requests\UpdateArchivePhysicalLocationRequest;
 use App\Models\Archive;
 use App\Models\ArchivePhysicalLocation;
+use App\Models\Rack;
 use Illuminate\Http\Request;
 
 class ArchivePhysicalLocationController extends Controller
@@ -39,7 +40,7 @@ class ArchivePhysicalLocationController extends Controller
     }
 
     public function index(Request $request)
-    {   
+    {
         $q = $request->query('q');
         if ($request->boolean('all')) {
             $physicalLocations = ArchivePhysicalLocation::search($q ?? '')->query(function ($query) use ($q) {
@@ -83,7 +84,6 @@ class ArchivePhysicalLocationController extends Controller
         ]);
     }
 
-
     public function show(string $id)
     {
         $archive = Archive::with(['physicalLocation.cabinet', 'physicalLocation.rack'])->findOrFail($id);
@@ -103,9 +103,6 @@ class ArchivePhysicalLocationController extends Controller
         ]);
     }
 
-
-
-
     public function store(StoreArchivePhysicalLocationRequest $request, string $id)
     {
         $archive = Archive::with('physicalLocation')->findOrFail($id);
@@ -121,6 +118,8 @@ class ArchivePhysicalLocationController extends Controller
 
         $physicalLocation = $archive->physicalLocation()->create($payload);
 
+        Rack::find($payload['rack_id'])->increment('used_capacity');
+
         return response()->json([
             'status' => 'success',
             'message' => 'sukses menyimpan physical location archive',
@@ -128,12 +127,9 @@ class ArchivePhysicalLocationController extends Controller
         ], 201);
     }
 
-
-
-
     public function update(UpdateArchivePhysicalLocationRequest $request, string $id)
     {
-        $archive = Archive::with('physicalLocation')->findOrFail($id);
+        $archive = Archive::with('physicalLocation.rack')->findOrFail($id);
         $physicalLocation = $archive->physicalLocation;
 
         if (! $physicalLocation) {
@@ -163,8 +159,17 @@ class ArchivePhysicalLocationController extends Controller
             $updateData['label_code'] = $labelCode;
         }
 
+        $oldRackId = $physicalLocation->rack_id;
+        $newRackId = array_key_exists('rack_id', $payload) ? $payload['rack_id'] : $oldRackId;
+        $rackChanged = $oldRackId !== $newRackId;
+
         if ($updateData !== []) {
             $physicalLocation->update($updateData);
+        }
+
+        if ($rackChanged) {
+            Rack::find($oldRackId)->decrement('used_capacity');
+            Rack::find($newRackId)->increment('used_capacity');
         }
 
         return response()->json([
@@ -176,7 +181,7 @@ class ArchivePhysicalLocationController extends Controller
 
     public function destroy(string $id)
     {
-        $archive = Archive::with('physicalLocation')->findOrFail($id);
+        $archive = Archive::with('physicalLocation.rack')->findOrFail($id);
         $physicalLocation = $archive->physicalLocation;
 
         if (! $physicalLocation) {
@@ -186,6 +191,7 @@ class ArchivePhysicalLocationController extends Controller
             ], 404);
         }
 
+        $physicalLocation->rack->decrement('used_capacity');
         $physicalLocation->delete();
 
         return response()->json([

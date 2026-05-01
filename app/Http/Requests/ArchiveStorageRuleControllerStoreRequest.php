@@ -40,7 +40,7 @@ class ArchiveStorageRuleControllerStoreRequest extends FormRequest
                 Rule::exists('subcategories', 'id')->where('category_id', $this->category_id),
             ],
             'cabinet_id' => 'required|integer|exists:cabinets,id',
-            'priority' => 'required|integer|unique:archive_storage_rules,priority'
+            'priority' => 'required|integer|unique:archive_storage_rules,priority',
         ];
     }
 }

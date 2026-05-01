@@ -96,7 +96,7 @@ class ArchiveStorageService
     private function generateLabelCode(Cabinet $cabinet, Rack $rack, int $slotNumber): string
     {
         return sprintf(
-            'L%d-R%d-S%02d',
+            'L%d-R%d-S%d',
             $cabinet->id,
             $rack->rack_number,
             $slotNumber
@@ -111,11 +111,15 @@ class ArchiveStorageService
             return null;
         }
 
-        return $archive->physicalLocation()->create([
+        $location = $archive->physicalLocation()->create([
             'cabinet_id' => $slot['cabinet_id'],
             'rack_id' => $slot['rack_id'],
             'slot_number' => $slot['slot_number'],
             'label_code' => $slot['label_code'],
         ]);
+
+        Rack::find($slot['rack_id'])->increment('used_capacity');
+
+        return $location;
     }
 }

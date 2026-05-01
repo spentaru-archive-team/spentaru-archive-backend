@@ -29,7 +29,7 @@ class ArchivePhysicalLocation extends Model
     {
         return [
             'notes' => $this->notes,
-            'label_code' => $this->label_code
+            'label_code' => $this->label_code,
         ];
     }
 

@@ -17,7 +17,7 @@ class CheckArchiveRetention extends Command
     public function handle()
     {
         Archive::where('retention_status', 'active')->whereDate('retention_due_date', '<=', now()->toDateString())->update([
-        'retention_status' => 'ready_for_destruction',
+            'retention_status' => 'ready_for_destruction',
         ]);
     }
 }

@@ -39,9 +39,6 @@ http://localhost:8000/api/v1
 | `POST` | `/auth/login` | Tidak | Login, throttle `5 request/menit` |
 | `POST` | `/auth/logout` | Ya | Logout session aktif |
 | `GET` | `/auth/me` | Ya | Profil user aktif |
-| `POST` | `/auth/devlogin` | Tidak | Endpoint debug sementara berbasis `web` middleware |
-| `GET` | `/auth/devme` | Ya | Endpoint debug sementara |
-| `POST` | `/auth/devlogout` | Ya | Endpoint debug sementara |
 
 ### Archive
 
@@ -402,7 +399,7 @@ Body mendukung partial update.
 Perilaku:
 
 - Jika file diganti, metadata file lama dihapus dan file fisik lama ikut dibersihkan setelah transaksi sukses.
-- Endpoint ini tidak otomatis menghitung ulang lokasi fisik.
+- Jika `category_id` atau `subcategory_id` berubah, archive akan auto-relocate ke rak baru (rack lama di-decrement, rack baru di-increment).
 
 ## 5. Arsip Tanpa Lokasi
 

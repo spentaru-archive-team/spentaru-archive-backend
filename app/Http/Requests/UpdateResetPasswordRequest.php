@@ -24,7 +24,7 @@ class UpdateResetPasswordRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'password' => ['string','min:8', 'nullable', Password::min(8)->letters()->numbers()->mixedCase()]
+            'password' => ['string', 'min:8', 'nullable', Password::min(8)->letters()->numbers()->mixedCase()],
         ];
     }
 }

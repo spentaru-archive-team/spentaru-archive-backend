@@ -107,8 +107,8 @@ class EventController extends Controller
         ]);
     }
 
-
-    public function getPendingUploads(Request $request) {
+    public function getPendingUploads(Request $request)
+    {
         $user_id = Auth::user()->id;
         $query = Event::with('user')->where('user_id', null, $user_id)->where('softfile_status', 'pending_upload');
 

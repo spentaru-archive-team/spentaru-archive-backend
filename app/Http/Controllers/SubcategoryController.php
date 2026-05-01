@@ -62,7 +62,6 @@ class SubcategoryController extends Controller
         $subcategory = Subcategory::create($validated);
 
         ArchiveCategory::find($request->category_id)->update(['has_subcategory' => true]);
-        
 
         return response()->json([
             'status' => 'success',

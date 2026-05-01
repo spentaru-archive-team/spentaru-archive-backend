@@ -29,7 +29,7 @@ class Archive extends Model
         'retention_status',
         'retention_decided_at',
         'retention_decided_by',
-        'retention_note'
+        'retention_note',
     ];
 
     protected function casts(): array
@@ -69,8 +69,6 @@ class Archive extends Model
             }
         });
     }
-
-
 
     public function uploader(): BelongsTo
     {

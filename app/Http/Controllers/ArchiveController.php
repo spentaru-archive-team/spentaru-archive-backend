@@ -13,8 +13,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str as SupportStr;
 use Illuminate\Support\Str;
+use Illuminate\Support\Str as SupportStr;
 
 class ArchiveController extends Controller
 {
@@ -126,6 +126,7 @@ class ArchiveController extends Controller
 
                 $query->orderBy('category_sort.name', $normalizedDirection);
                 $appliedSort = true;
+
                 continue;
             }
 
@@ -173,7 +174,7 @@ class ArchiveController extends Controller
                 'uploader',
                 'physicalLocation.cabinet',
                 'physicalLocation.rack',
-        ])->filter();
+            ])->filter();
 
             if (filled($q)) {
                 $this->applyArchiveSearch($query, $q);
@@ -286,18 +287,30 @@ class ArchiveController extends Controller
      */
     public function update(UpdateArchiveRequest $request, string $id)
     {
-        $archive = Archive::with(['files', 'physicalLocation'])->findOrFail($id);
+        $archive = Archive::with(['files', 'physicalLocation.rack'])->findOrFail($id);
         $validated = $request->safe()->all();
 
         $archiveInput = collect($validated)
             ->except(['file'])
             ->all();
         $archiveData = [];
+        $categoryChanged = false;
+        $subcategoryChanged = false;
+
         foreach ($archiveInput as $key => $value) {
             if (! $this->hasSameValue($archive->{$key}, $value)) {
                 $archiveData[$key] = $value;
+                if ($key === 'category_id') {
+                    $categoryChanged = true;
+                }
+                if ($key === 'subcategory_id') {
+                    $subcategoryChanged = true;
+                }
             }
         }
+
+        $needsRelocation = $categoryChanged || $subcategoryChanged;
+        $oldRack = $archive->physicalLocation?->rack;
 
         $path = null;
         $filename = null;
@@ -324,7 +337,7 @@ class ArchiveController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($archive, $archiveData, $file, $filename, $path) {
+            DB::transaction(function () use ($archive, $archiveData, $file, $filename, $path, $needsRelocation, $oldRack) {
                 if ($archiveData !== []) {
                     $archive->update($archiveData);
                 }
@@ -337,6 +350,14 @@ class ArchiveController extends Controller
                         'file_type' => strtolower($file->getClientOriginalExtension()),
                         'file_url' => $path,
                     ]);
+                }
+
+                if ($needsRelocation && $archive->physicalLocation) {
+                    $archive->physicalLocation->delete();
+                    if ($oldRack) {
+                        $oldRack->decrement('used_capacity');
+                    }
+                    $this->storageService->assignLocation($archive, $archive->category_id, $archive->subcategory_id);
                 }
             });
         } catch (\Throwable $th) {
@@ -363,7 +384,7 @@ class ArchiveController extends Controller
      */
     public function destroy(string $id)
     {
-        $archive = Archive::with('files')->findOrFail($id);
+        $archive = Archive::with(['files', 'physicalLocation.rack'])->findOrFail($id);
         $filePaths = collect([$archive->files])
             ->filter()
             ->pluck('file_url')
@@ -373,6 +394,9 @@ class ArchiveController extends Controller
             ->all();
 
         DB::transaction(function () use ($archive) {
+            if ($archive->physicalLocation?->rack) {
+                $archive->physicalLocation->rack->decrement('used_capacity');
+            }
             $archive->delete();
         });
 
@@ -400,11 +424,16 @@ class ArchiveController extends Controller
 
     public function decideRetention(DecideRetentionRequest $request, string $id)
     {
-        $archive = Archive::with('files')->findOrFail($id);
+        $archive = Archive::with(['files', 'physicalLocation.rack'])->findOrFail($id);
 
-        if ($request->retention_status === 'destroyed' && $archive->files?->file_url) {
-            Storage::disk('public')->delete(Str::after($archive->files->file_url, '/storage/'));
-            $archive->files()->delete();
+        if ($request->retention_status === 'destroyed') {
+            if ($archive->files?->file_url) {
+                Storage::disk('public')->delete(Str::after($archive->files->file_url, '/storage/'));
+                $archive->files()->delete();
+            }
+            if ($archive->physicalLocation?->rack) {
+                $archive->physicalLocation->rack->decrement('used_capacity');
+            }
         }
 
         $archive->update([

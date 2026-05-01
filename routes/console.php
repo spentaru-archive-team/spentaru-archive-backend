@@ -9,5 +9,3 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('archives:check-archive-retention')->daily();
-
-

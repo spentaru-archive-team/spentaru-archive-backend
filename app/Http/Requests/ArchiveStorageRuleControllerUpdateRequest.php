@@ -69,7 +69,7 @@ class ArchiveStorageRuleControllerUpdateRequest extends FormRequest
                 'required',
                 'integer',
                 'exists:cabinets,id',
-        ],
+            ],
 
             'priority' => [
                 'sometimes',
@@ -77,7 +77,7 @@ class ArchiveStorageRuleControllerUpdateRequest extends FormRequest
                 'integer',
                 Rule::unique('archive_storage_rules', 'priority')
                     ->ignore($ruleId),
-        ],
+            ],
         ];
     }
 }
