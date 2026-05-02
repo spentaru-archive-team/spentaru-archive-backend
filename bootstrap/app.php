@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\Admin;
 use App\Http\Middleware\Authenticate;
+use App\Http\Middleware\EnsureAiToolAccess;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
@@ -27,6 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'admin' => Admin::class,
             'auth' => Authenticate::class,
+            'ai.tool' => EnsureAiToolAccess::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

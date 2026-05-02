@@ -10,6 +10,7 @@ http://localhost:8000/api/v1
 
 - Response JSON mengikuti pola `status`, `message`, lalu opsional `data`, `errors`, `trace_id`.
 - Auth API aktif memakai Laravel Sanctum stateful berbasis session cookie.
+- Endpoint internal AI tool `/ai/tools/archives/search` tidak memakai session Sanctum; aksesnya memakai shared secret header untuk service Python AI.
 - Fitur list tertentu mendukung `q` untuk pencarian teks bebas, `filters[...]` untuk penyaringan field, dan `sort` untuk pengurutan hasil.
 - Konfigurasi search default repo saat ini memakai driver `collection` di `config/scout.php`.
 - Frontend SPA atau first-party perlu memanggil `GET /sanctum/csrf-cookie` sebelum `POST /api/v1/auth/login`.
@@ -126,6 +127,151 @@ http://localhost:8000/api/v1
 | `POST` | `/ai/chat/ask` | Ya | Chat ke AI service |
 | `POST` | `/ai/ocr/extract` | Ya | OCR file gambar |
 | `POST` | `/ai/pdf/extract-native` | Ya | Ekstraksi teks PDF native |
+| `POST` | `/ai/tools/archives/search` | Header internal AI | Tool endpoint untuk agent Python mencari arsip berdasarkan `question` bebas |
+
+## AI Tool Header
+
+- Header default: `X-AI-Tool-Key`
+- Value header diambil dari env `AI_TOOL_ACCESS_KEY`
+- Nama header bisa dioverride lewat env `AI_TOOL_ACCESS_HEADER`
+- Endpoint ini ditujukan untuk machine-to-machine call dari service AI, bukan frontend/browser
+
+## Search Archives Tool
+
+```http
+POST /api/v1/ai/tools/archives/search
+```
+
+Headers:
+
+```http
+Content-Type: application/json
+Accept: application/json
+X-AI-Tool-Key: <AI_TOOL_ACCESS_KEY>
+X-Trace-Id: <optional-trace-id>
+```
+
+Body:
+
+| Key | Tipe | Wajib | Aturan |
+|---|---|---|---|
+| `question` | `string` | Ya | max `2000` |
+| `limit` | `integer` | Tidak | min `1`, max `20`, default `5` |
+
+Contoh body:
+
+```json
+{
+  "question": "Cari arsip judul \"Merayakan Hari Kemerdekaan\" dan OCR berisi tanda tangan Ahmad Mahmud, sekalian lokasi fisiknya",
+  "limit": 5
+}
+```
+
+Perilaku search:
+
+- Laravel menerima `question` bebas lalu mengekstrak frasa dalam tanda kutip dan token keyword penting.
+- Kandidat arsip dicari dari `archives.title`, `archives.notes`, `archives.year`, `ocr_texts.extracted_text`, `events.title`, `archive_categories.name`, `subcategories.name`, `archive_physical_locations.label_code`, `archive_physical_locations.notes`, `archive_physical_locations.slot_number`, `cabinets.name`, `cabinets.cabinet_number`, dan `racks.rack_number`.
+- Hasil diberi `match_score` berbobot per field, lalu diurutkan dari yang paling relevan.
+- Response memuat token hasil resolve, alasan match per field, file, excerpt OCR, dan lokasi fisik lengkap.
+
+Contoh response sukses:
+
+```json
+{
+  "status": "success",
+  "message": "sukses mencari arsip untuk AI tool",
+  "data": {
+    "question": "Cari arsip judul \"Merayakan Hari Kemerdekaan\" dan OCR berisi tanda tangan Ahmad Mahmud, sekalian lokasi fisiknya",
+    "resolved_terms": [
+      "Merayakan Hari Kemerdekaan",
+      "ocr",
+      "tanda",
+      "tangan",
+      "Ahmad",
+      "Mahmud",
+      "lokasi"
+    ],
+    "limit": 5,
+    "total_matches": 1,
+    "archives": [
+      {
+        "archive_id": 12,
+        "title": "Merayakan Hari Kemerdekaan",
+        "year": "2025",
+        "notes": "Dokumentasi kegiatan upacara",
+        "match_score": 172,
+        "match_reasons": [
+          {
+            "field": "judul arsip",
+            "matched_terms": ["Merayakan Hari Kemerdekaan"],
+            "field_score": 60,
+            "reason": "judul arsip cocok dengan keyword: Merayakan Hari Kemerdekaan"
+          },
+          {
+            "field": "OCR arsip",
+            "matched_terms": ["tanda", "tangan", "Ahmad", "Mahmud"],
+            "field_score": 96,
+            "reason": "OCR arsip cocok dengan keyword: tanda, tangan, Ahmad, Mahmud"
+          }
+        ],
+        "event": {
+          "id": 8,
+          "title": "Peringatan 17 Agustus"
+        },
+        "category": {
+          "id": 3,
+          "name": "Kesiswaan"
+        },
+        "subcategory": {
+          "id": 9,
+          "name": "Dokumentasi"
+        },
+        "physical_location": {
+          "id": 10,
+          "archive_id": 12,
+          "label_code": "L1-R2-S4",
+          "slot_number": 4,
+          "notes": "Baris depan lemari utama",
+          "location_summary": "label L1-R2-S4, lemari Lemari Arsip Utama (#1), rak 2, slot 4",
+          "cabinet": {
+            "id": 1,
+            "cabinet_number": 1,
+            "name": "Lemari Arsip Utama",
+            "created_at": "2026-05-03T03:10:00.000000Z",
+            "updated_at": "2026-05-03T03:10:00.000000Z"
+          },
+          "rack": {
+            "id": 2,
+            "rack_number": 2,
+            "capacity": 20,
+            "used_capacity": 1,
+            "created_at": "2026-05-03T03:10:00.000000Z",
+            "updated_at": "2026-05-03T03:10:00.000000Z"
+          },
+          "created_at": "2026-05-03T03:10:00.000000Z",
+          "updated_at": "2026-05-03T03:10:00.000000Z"
+        },
+        "file": {
+          "file_name": "merdeka.pdf",
+          "file_type": "pdf",
+          "file_size": 102400,
+          "file_url": "/storage/uploads/merdeka.pdf",
+          "created_at": "2026-05-03T03:10:00.000000Z",
+          "updated_at": "2026-05-03T03:10:00.000000Z"
+        },
+        "ocr_excerpt": "...memiliki tanda tangan kepala sekolah Ahmad Mahmud pada halaman akhir..."
+      }
+    ],
+    "suggested_answer": "Arsip yang paling cocok adalah \"Merayakan Hari Kemerdekaan\". Lokasi fisiknya: label L1-R2-S4, lemari Lemari Arsip Utama (#1), rak 2, slot 4."
+  },
+  "trace_id": "0b3ad4d1-8d1b-43a1-9a76-9f0d6ddfa4bd"
+}
+```
+
+Kemungkinan error:
+
+- `401` bila header internal tidak valid
+- `422` bila body tidak lolos validasi
 
 ## Detail Endpoint Penting
 

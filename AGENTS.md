@@ -82,6 +82,7 @@ Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
 - Archive punya workflow retensi: `retention_due_date`, `retention_status`, `retention_decided_at`, `retention_decided_by`, `retention_note`.
 - Ada endpoint arsip tanpa lokasi fisik, arsip siap pemusnahan, dan keputusan retensi arsip.
 - Ada AI gateway internal via `AiGatewayController` untuk health, chat, OCR gambar, dan ekstraksi PDF native.
+- Ada AI tool endpoint internal `POST /api/v1/ai/tools/archives/search` yang diakses service Python via shared secret header dan menerima `question` bebas.
 - Dashboard punya endpoint daftar guru dengan event yang belum memiliki archive.
 - Global JSON exception handling ada di `bootstrap/app.php` untuk 401, 403, 405, 422, dan 429.
 
@@ -112,6 +113,7 @@ ai gateway
   /ai/chat/ask
   /ai/ocr/extract
   /ai/pdf/extract-native
+  /ai/tools/archives/search
 ```
 
 ## Working Rules

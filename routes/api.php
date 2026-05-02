@@ -122,6 +122,10 @@ Route::prefix('v1')->group(function () {
         Route::post('/pdf/extract-native', [AiGatewayController::class, 'extractPdfNative']);
     });
 
+    Route::prefix('ai/tools')->middleware('ai.tool')->group(function () {
+        Route::post('/archives/search', [AiGatewayController::class, 'searchArchivesTool']);
+    });
+
     Route::prefix('dashboard')->middleware('auth:sanctum')->group(function () {
         Route::get('/', [DashboardController::class, 'index']);
         Route::get('/teachers-without-archives', [DashboardController::class, 'teachersWithoutArchives']);
