@@ -116,6 +116,7 @@ http://localhost:8000/api/v1
 | Method | Endpoint | Auth | Keterangan |
 |---|---|---|---|
 | `GET` | `/dashboard` | Ya | Ambil total arsip, kategori, subkategori, user |
+| `GET` | `/dashboard/teachers-without-archives` | Ya | List event guru yang belum punya archive, memuat relasi `user` |
 
 ### AI Gateway
 
@@ -1039,7 +1040,69 @@ Perilaku:
 - Jika `retention_status=destroyed`, file fisik arsip di disk `public` dihapus dan row `archive_files` ikut dihapus.
 - Jika `retention_status=active`, `retention_due_date` boleh diperbarui dari payload.
 
-## 16. AI Gateway
+## 16. Dashboard Teachers Without Archives
+
+```http
+GET /api/v1/dashboard/teachers-without-archives
+```
+
+Auth:
+
+- user login via Sanctum session cookie
+
+Perilaku:
+
+- Mengambil data dari tabel `events`.
+- Hanya mengambil event yang belum punya relasi `archives`.
+- Hanya mengambil event yang pemiliknya (`user`) ber-role `guru`.
+- Response memuat relasi `user`.
+- Urutan data: `date` terbaru dulu, lalu `created_at` terbaru dulu.
+- Jika `all=true`, response mengembalikan seluruh data tanpa pagination.
+- Jika `all` tidak dikirim, response menggunakan pagination dengan default `10`.
+
+Query:
+
+| Key | Tipe | Default | Keterangan |
+|---|---|---|---|
+| `all` | `boolean` | `false` | ambil semua data tanpa pagination |
+| `per_page` | `integer` | `10` | jumlah data per halaman saat pagination aktif |
+
+Contoh:
+
+```text
+/api/v1/dashboard/teachers-without-archives
+/api/v1/dashboard/teachers-without-archives?per_page=5
+/api/v1/dashboard/teachers-without-archives?all=true
+```
+
+Contoh bentuk item:
+
+```json
+{
+  "id": 12,
+  "title": "Rapat Komite",
+  "user_id": 3,
+  "description": "Koordinasi agenda sekolah",
+  "date": "2026-05-01T00:00:00.000000Z",
+  "status": "ongoing",
+  "softfile_status": "pending_upload",
+  "created_at": "2026-05-02T08:54:50.000000Z",
+  "updated_at": "2026-05-02T08:54:50.000000Z",
+  "user": {
+    "id": 3,
+    "name": "Guru Naufal",
+    "username": "guru_bindo",
+    "role": "guru",
+    "subject": "Bahasa Indonesia",
+    "position": "Guru",
+    "last_login_at": "2026-05-02 15:30:00",
+    "created_at": "2026-05-02 08:54:50",
+    "updated_at": "2026-05-02 09:27:54"
+  }
+}
+```
+
+## 17. AI Gateway
 
 Semua endpoint AI gateway memakai auth Sanctum dan dapat meneruskan `trace_id` atau header `X-Trace-Id`.
 
@@ -1081,7 +1144,7 @@ Body:
 |---|---|---|---|
 | `file` | `file` | Ya | `pdf` |
 
-## 17. Archive Storage Rules
+## 18. Archive Storage Rules
 
 Semua endpoint `archive-storage-rules` memakai middleware `auth:sanctum` dan `admin`.
 
@@ -1165,7 +1228,7 @@ Perilaku:
 
 - Response hanya mengembalikan `status` dan `message`.
 
-## 18. User Notes
+## 19. User Notes
 
 ### List user
 

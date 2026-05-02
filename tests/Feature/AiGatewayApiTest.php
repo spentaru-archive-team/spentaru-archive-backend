@@ -17,6 +17,8 @@ class AiGatewayApiTest extends TestCase
         return new User([
             'id' => 1,
             'name' => 'AI Tester',
+            'subject' => 'Informatika',
+            'position' => 'Guru',
             'username' => 'ai_tester',
             'password' => 'Password123',
             'role' => $role,
@@ -166,7 +168,7 @@ class AiGatewayApiTest extends TestCase
             ], 200),
         ]);
 
-        $file = UploadedFile::fake()->image('arsip.png');
+        $file = UploadedFile::fake()->create('arsip.png', 100, 'image/png');
 
         $response = $this->post('/api/v1/ai/ocr/extract', [
             'file' => $file,
@@ -254,7 +256,7 @@ class AiGatewayApiTest extends TestCase
         $user = $this->authenticatedUser('guru');
         Sanctum::actingAs($user);
 
-        $imageFile = UploadedFile::fake()->image('bukan-pdf.png');
+        $imageFile = UploadedFile::fake()->create('bukan-pdf.png', 100, 'image/png');
 
         $this->post('/api/v1/ai/pdf/extract-native', [
             'file' => $imageFile,

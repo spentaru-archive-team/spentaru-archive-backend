@@ -16,6 +16,8 @@ class UsersApiTest extends TestCase
     {
         return User::create(array_merge([
             'name' => 'Test User',
+            'subject' => 'Kearsipan',
+            'position' => 'Guru',
             'username' => 'testuser_'.fake()->unique()->numerify('###'),
             'password' => 'Password123',
             'role' => 'guru',

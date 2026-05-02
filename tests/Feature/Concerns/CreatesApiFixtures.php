@@ -16,6 +16,8 @@ trait CreatesApiFixtures
     {
         return User::create(array_merge([
             'name' => 'Test User',
+            'subject' => 'Kearsipan',
+            'position' => 'Guru',
             'username' => 'testuser_'.fake()->unique()->numerify('###'),
             'password' => 'Password123',
             'role' => 'guru',
@@ -41,6 +43,7 @@ trait CreatesApiFixtures
             'status' => 'ongoing',
         ]);
         $cabinet = Cabinet::create([
+            'cabinet_number' => random_int(1000, 9999),
             'name' => 'Lemari '.fake()->unique()->lexify('???'),
         ]);
         $rack = Rack::create([

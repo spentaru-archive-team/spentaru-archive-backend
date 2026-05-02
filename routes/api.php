@@ -124,6 +124,7 @@ Route::prefix('v1')->group(function () {
 
     Route::prefix('dashboard')->middleware('auth:sanctum')->group(function () {
         Route::get('/', [DashboardController::class, 'index']);
+        Route::get('/teachers-without-archives', [DashboardController::class, 'teachersWithoutArchives']);
     });
 
     Route::middleware(['admin', 'auth:sanctum'])->group(function () {

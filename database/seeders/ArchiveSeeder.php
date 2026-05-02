@@ -15,6 +15,15 @@ class ArchiveSeeder extends Seeder
 {
     public function run(): void
     {
+        $this->call([
+            UserSeeder::class,
+            ArchiveCategorySeeder::class,
+            SubcategorySeeder::class,
+            CabinetSeeder::class,
+            RackSeeder::class,
+            EventSeeder::class,
+        ]);
+
         $categories = ArchiveCategory::query()->orderBy('id')->get()->keyBy('name');
         $subcategories = Subcategory::query()->orderBy('id')->get()->groupBy('category_id');
         $users = User::query()->orderBy('id')->get();
