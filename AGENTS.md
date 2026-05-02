@@ -77,10 +77,11 @@ Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
 - Archive auto-assign physical location via `ArchiveStorageService` saat create archive bila rule/rak tersedia.
 - Ada endpoint admin untuk CRUD `archive_storage_rules` sebagai rule penempatan arsip ke lemari.
 - Ada endpoint manual untuk CRUD physical location archive.
+- Endpoint create/update `cabinets` mendukung sinkronisasi nested `racks` dalam satu request.
+- Endpoint create/update `racks` menerima `used_capacity` dan menjaga validasi kapasitas tetap konsisten.
 - Archive punya workflow retensi: `retention_due_date`, `retention_status`, `retention_decided_at`, `retention_decided_by`, `retention_note`.
 - Ada endpoint arsip tanpa lokasi fisik, arsip siap pemusnahan, dan keputusan retensi arsip.
 - Ada AI gateway internal via `AiGatewayController` untuk health, chat, OCR gambar, dan ekstraksi PDF native.
-- Ada endpoint auth debug sementara `devlogin`, `devme`, `devlogout` di `routes/api.php`.
 - Global JSON exception handling ada di `bootstrap/app.php` untuk 401, 403, 405, 422, dan 429.
 
 ## Domain Map
@@ -144,10 +145,10 @@ app/Http/Controllers/SubcategoryController.php
   CRUD subcategory (admin-only write)
 
 app/Http/Controllers/CabinetController.php
-  CRUD cabinet (admin-only write)
+  CRUD cabinet (admin-only write) + sync nested racks saat create/update
 
 app/Http/Controllers/RackController.php
-  CRUD rack (admin-only write)
+  CRUD rack (admin-only write) + validasi used_capacity/capacity
 
 app/Http/Controllers/UserController.php
   CRUD user (admin-only) + self-update profile + reset password + search/filter user by query

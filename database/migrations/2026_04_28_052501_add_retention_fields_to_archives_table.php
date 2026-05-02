@@ -31,6 +31,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('archives', function (Blueprint $table) {
+            $table->dropForeign(['retention_decided_by']);
             $table->dropColumn([
                 'retention_due_date',
                 'retention_status',

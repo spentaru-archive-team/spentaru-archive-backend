@@ -80,8 +80,8 @@ http://localhost:8000/api/v1
 | `DELETE` | `/subcategories/{id}` | Admin | Hapus subkategori |
 | `GET` | `/cabinets` | Ya | List lemari |
 | `GET` | `/cabinets/{id}` | Ya | Detail lemari |
-| `POST` | `/cabinets` | Admin | Create lemari |
-| `PUT` | `/cabinets/{id}` | Admin | Update lemari |
+| `POST` | `/cabinets` | Admin | Create lemari + nested racks |
+| `PUT` | `/cabinets/{id}` | Admin | Update lemari + sinkronisasi nested racks |
 | `DELETE` | `/cabinets/{id}` | Admin | Hapus lemari |
 | `GET` | `/racks` | Ya | List rak |
 | `GET` | `/racks/{id}` | Ya | Detail rak |
@@ -171,7 +171,136 @@ Kemungkinan error:
 - `422` bila body tidak lolos validasi
 - `429` bila melewati limit login
 
-## 2. List Archive
+## 2. Create Cabinet
+
+```http
+POST /api/v1/cabinets
+```
+
+Auth:
+
+- `admin`
+- Flow SPA tetap perlu `GET /sanctum/csrf-cookie` lalu login session.
+
+Body:
+
+| Key | Tipe | Wajib | Aturan |
+|---|---|---|---|
+| `cabinet_number` | `integer` | Ya | unik, min `1` |
+| `name` | `string` | Ya | unik, max `255` |
+| `racks` | `array` | Ya | minimal `1` item |
+| `racks.*.id` | `integer` | Tidak | boleh dikirim frontend, diabaikan saat create |
+| `racks.*.rack_number` | `integer` | Ya | min `1`, unik dalam array request |
+| `racks.*.capacity` | `integer` | Ya | min `0` |
+| `racks.*.used_capacity` | `integer` | Ya | min `0`, tidak boleh lebih besar dari `capacity` |
+
+Contoh body:
+
+```json
+{
+  "cabinet_number": "1",
+  "name": "Standar Isi",
+  "racks": [
+    {
+      "rack_number": "1",
+      "capacity": "20",
+      "used_capacity": "1"
+    },
+    {
+      "rack_number": "2",
+      "capacity": "20",
+      "used_capacity": "0"
+    }
+  ]
+}
+```
+
+Catatan:
+
+- Endpoint membuat lemari dan seluruh rack dalam satu transaksi DB.
+- `racks` boleh berisi 1 item atau lebih.
+- Response sukses memuat relasi `racks` yang sudah diurutkan berdasarkan `rack_number`.
+
+## 3. Update Cabinet
+
+```http
+PUT /api/v1/cabinets/{id}
+```
+
+Auth:
+
+- `admin`
+
+Body:
+
+| Key | Tipe | Wajib | Aturan |
+|---|---|---|---|
+| `cabinet_number` | `integer` | Tidak | unik, min `1` |
+| `name` | `string` | Tidak | unik, max `255` |
+| `racks` | `array` | Tidak | jika dikirim, minimal `1` item |
+| `racks.*.id` | `integer` | Tidak | pakai untuk update rack lama |
+| `racks.*.rack_number` | `integer` | Ya jika `racks` dikirim | min `1`, unik dalam array request |
+| `racks.*.capacity` | `integer` | Ya jika `racks` dikirim | min `0` |
+| `racks.*.used_capacity` | `integer` | Ya jika `racks` dikirim | min `0`, tidak boleh lebih besar dari `capacity` |
+
+Perilaku sinkronisasi `racks`:
+
+- Item `racks` yang punya `id` akan diupdate, dan `id` tersebut harus milik lemari yang sama.
+- Item `racks` tanpa `id` akan dibuat sebagai rack baru.
+- Rack lama yang tidak ikut dikirim dalam payload akan dihapus.
+- Rack yang masih punya physical location tidak boleh dihapus.
+- `capacity` rack tidak boleh diperkecil di bawah jumlah physical location yang sudah menempel.
+
+Contoh body:
+
+```json
+{
+  "cabinet_number": "1",
+  "name": "Standar Isi Update",
+  "racks": [
+    {
+      "id": 10,
+      "rack_number": "1",
+      "capacity": "30",
+      "used_capacity": "1"
+    },
+    {
+      "rack_number": "3",
+      "capacity": "15",
+      "used_capacity": "0"
+    }
+  ]
+}
+```
+
+## 4. Create / Update Rack
+
+```http
+POST /api/v1/racks
+PUT /api/v1/racks/{id}
+```
+
+Auth:
+
+- `admin`
+
+Body `POST /racks`:
+
+| Key | Tipe | Wajib | Aturan |
+|---|---|---|---|
+| `cabinet_id` | `integer` | Ya | `exists:cabinets,id` |
+| `rack_number` | `integer` | Ya | min `1`, unik per lemari |
+| `capacity` | `integer` | Ya | min `1`, max `100` |
+| `used_capacity` | `integer` | Tidak | default `0`, tidak boleh lebih besar dari `capacity` |
+
+Body `PUT /racks/{id}`:
+
+- Mendukung partial update untuk `cabinet_id`, `rack_number`, `capacity`, dan `used_capacity`.
+- Kombinasi final `cabinet_id + rack_number` tetap harus unik.
+- `capacity` tidak boleh lebih kecil dari jumlah physical location yang sudah tersimpan pada rack.
+- `used_capacity` tidak boleh lebih besar dari `capacity`.
+
+## 5. List Archive
 
 ```http
 GET /api/v1/archives
@@ -361,7 +490,7 @@ Catatan penting:
 - Jika nanti ingin mengaktifkan filter relasi, backend perlu menambahkan dukungan eksplisit pada model relasi yang terkait.
 - Sort relasi tetap aktif walaupun filter relasi belum aktif. Untuk endpoint archive, `sort=category.name:asc|desc` sudah ditangani eksplisit dan aman dipakai bersama `q`.
 
-## 3. Create Archive
+## 6. Create Archive
 
 ```http
 POST /api/v1/archives
@@ -388,7 +517,7 @@ Perilaku:
 - Jika category sudah punya subcategory, maka `subcategory_id` wajib diisi.
 - Sistem mencoba auto-assign lokasi fisik melalui `ArchiveStorageService`.
 
-## 4. Update Archive
+## 7. Update Archive
 
 ```http
 PUT /api/v1/archives/{id}
@@ -401,7 +530,7 @@ Perilaku:
 - Jika file diganti, metadata file lama dihapus dan file fisik lama ikut dibersihkan setelah transaksi sukses.
 - Jika `category_id` atau `subcategory_id` berubah, archive akan auto-relocate ke rak baru (rack lama di-decrement, rack baru di-increment).
 
-## 5. Arsip Tanpa Lokasi
+## 8. Arsip Tanpa Lokasi
 
 ```http
 GET /api/v1/archives/without-location
@@ -409,7 +538,7 @@ GET /api/v1/archives/without-location
 
 Mengembalikan semua archive yang belum punya relasi `physicalLocation`.
 
-## 6. Physical Location Archive
+## 9. Physical Location Archive
 
 ### List semua physical location
 
@@ -649,7 +778,7 @@ Catatan untuk frontend:
 - Jika sumber data berasal dari list `/api/v1/archives/physical-locations`, jangan kirim `data.id` ke endpoint nested ini.
 - Untuk endpoint nested `/api/v1/archives/{id}/physical-locations`, gunakan `data.archive_id` dari hasil list physical location, atau gunakan `archive.id` dari endpoint archive.
 
-## 7. List Event
+## 10. List Event
 
 ```http
 GET /api/v1/events
@@ -776,7 +905,7 @@ Catatan penting:
 - Walau endpoint ini punya relasi `user` dan `archives`, filter relasi `filters[user][name]...` atau `filters[archives][title]...` belum tentu bekerja pada kode aktif jika backend belum menyiapkan dukungan relasi tersebut.
 - Sort relasi tetap tersedia karena model `Event` memakai `Sortable`.
 
-## 8. List Event Pending Upload
+## 11. List Event Pending Upload
 
 ```http
 GET /api/v1/events/pending-uploads
@@ -831,7 +960,7 @@ Response sukses:
 }
 ```
 
-## 9. Create Event
+## 12. Create Event
 
 ```http
 POST /api/v1/events
@@ -854,7 +983,7 @@ Catatan:
 - `softfile_status` tidak diinput manual pada endpoint event.
 - Nilainya otomatis `pending_upload` atau `uploaded` berdasarkan ada tidaknya archive pada event yang memiliki relasi `files`.
 
-## 10. Update Event
+## 13. Update Event
 
 ```http
 PUT /api/v1/events/{id}
@@ -868,7 +997,7 @@ Aturan:
 - `description` boleh `nullable|string`.
 - Response sukses memuat relasi `user`.
 
-## 11. Delete Event
+## 14. Delete Event
 
 ```http
 DELETE /api/v1/events/{id}
@@ -879,7 +1008,7 @@ Perilaku:
 - Event tidak bisa dihapus jika masih punya archive.
 - Jika masih punya archive, endpoint mengembalikan `422` dengan message `Tidak dapat menghapus event yang memiliki arsip`.
 
-## 12. Retention
+## 15. Retention
 
 ### Arsip siap pemusnahan
 
@@ -910,7 +1039,7 @@ Perilaku:
 - Jika `retention_status=destroyed`, file fisik arsip di disk `public` dihapus dan row `archive_files` ikut dihapus.
 - Jika `retention_status=active`, `retention_due_date` boleh diperbarui dari payload.
 
-## 13. AI Gateway
+## 16. AI Gateway
 
 Semua endpoint AI gateway memakai auth Sanctum dan dapat meneruskan `trace_id` atau header `X-Trace-Id`.
 
@@ -952,7 +1081,7 @@ Body:
 |---|---|---|---|
 | `file` | `file` | Ya | `pdf` |
 
-## 14. Archive Storage Rules
+## 17. Archive Storage Rules
 
 Semua endpoint `archive-storage-rules` memakai middleware `auth:sanctum` dan `admin`.
 
@@ -1036,7 +1165,7 @@ Perilaku:
 
 - Response hanya mengembalikan `status` dan `message`.
 
-## 15. User Notes
+## 18. User Notes
 
 ### List user
 

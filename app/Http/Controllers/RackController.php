@@ -34,7 +34,17 @@ class RackController extends Controller
             'cabinet_id' => 'required|integer|exists:cabinets,id',
             'rack_number' => 'required|integer|min:1',
             'capacity' => 'required|integer|min:1|max:100',
+            'used_capacity' => 'sometimes|integer|min:0',
         ]);
+
+        $validated['used_capacity'] = (int) ($validated['used_capacity'] ?? 0);
+
+        if ($validated['used_capacity'] > $validated['capacity']) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Used capacity tidak boleh lebih besar dari capacity',
+            ], 422);
+        }
 
         $exists = Rack::where('cabinet_id', $validated['cabinet_id'])
             ->where('rack_number', $validated['rack_number'])
@@ -69,26 +79,44 @@ class RackController extends Controller
 
     public function update(Request $request, string $id): JsonResponse
     {
-        $rack = Rack::findOrFail($id);
+        $rack = Rack::withCount('physicalLocations')->findOrFail($id);
 
         $validated = $request->validate([
             'cabinet_id' => 'sometimes|required|integer|exists:cabinets,id',
             'rack_number' => 'sometimes|required|integer|min:1',
             'capacity' => 'sometimes|required|integer|min:1|max:100',
+            'used_capacity' => 'sometimes|required|integer|min:0',
         ]);
 
-        if (isset($validated['cabinet_id']) && isset($validated['rack_number'])) {
-            $exists = Rack::where('cabinet_id', $validated['cabinet_id'])
-                ->where('rack_number', $validated['rack_number'])
-                ->where('id', '!=', $id)
-                ->exists();
+        $targetCabinetId = $validated['cabinet_id'] ?? $rack->cabinet_id;
+        $targetRackNumber = $validated['rack_number'] ?? $rack->rack_number;
+        $targetCapacity = $validated['capacity'] ?? $rack->capacity;
+        $targetUsedCapacity = $validated['used_capacity'] ?? $rack->used_capacity;
 
-            if ($exists) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Rak dengan nomor yang sama sudah ada di lemari ini',
-                ], 422);
-            }
+        if ($targetUsedCapacity > $targetCapacity) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Used capacity tidak boleh lebih besar dari capacity',
+            ], 422);
+        }
+
+        if ($rack->physical_locations_count > $targetCapacity) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Capacity rak tidak boleh lebih kecil dari jumlah arsip fisik yang sudah tersimpan',
+            ], 422);
+        }
+
+        $exists = Rack::where('cabinet_id', $targetCabinetId)
+            ->where('rack_number', $targetRackNumber)
+            ->where('id', '!=', $id)
+            ->exists();
+
+        if ($exists) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Rak dengan nomor yang sama sudah ada di lemari ini',
+            ], 422);
         }
 
         $rack->update($validated);
