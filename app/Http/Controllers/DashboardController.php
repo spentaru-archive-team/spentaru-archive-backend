@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Archive;
 use App\Models\ArchiveCategory;
+use App\Models\Cabinet;
 use App\Models\Subcategory;
 use App\Models\User;
 
@@ -20,6 +21,9 @@ class DashboardController extends Controller
         // total kategori arsip
         $archive_category_total = ArchiveCategory::count();
 
+        // total lemari arsip
+        $cabinet_total = Cabinet::count();
+
         // total subkategori arsip
         $archive_subcategory_total = Subcategory::count();
 
@@ -29,6 +33,7 @@ class DashboardController extends Controller
         $total = [
             'archive_total' => $archive_total,
             'archive_category_total' => $archive_category_total,
+            'cabinet_total' => $cabinet_total,
             'archive_subcategory_total' => $archive_subcategory_total,
             'user_total' => $user_total,
         ];
