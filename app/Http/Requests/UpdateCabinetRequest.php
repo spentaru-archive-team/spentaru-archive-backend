@@ -25,7 +25,7 @@ class UpdateCabinetRequest extends FormRequest
 
             'racks' => ['sometimes', 'required', 'array', 'min:1'],
             'racks.*.id' => ['nullable', 'integer'],
-            'racks.*.rack_number' => ['required_with:racks', 'integer', 'min:1', 'distinct'],
+            'racks.*.rack_number' => ['required_with:racks', 'integer', 'min:1', 'max:10', 'distinct'],
             'racks.*.capacity' => ['required_with:racks', 'integer', 'min:0'],
             'racks.*.used_capacity' => [
                 'required_with:racks',

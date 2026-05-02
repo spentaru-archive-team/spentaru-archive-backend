@@ -191,7 +191,7 @@ Body:
 | `name` | `string` | Ya | unik, max `255` |
 | `racks` | `array` | Ya | minimal `1` item |
 | `racks.*.id` | `integer` | Tidak | boleh dikirim frontend, diabaikan saat create |
-| `racks.*.rack_number` | `integer` | Ya | min `1`, unik dalam array request |
+| `racks.*.rack_number` | `integer` | Ya | min `1`, max `10`, unik dalam array request |
 | `racks.*.capacity` | `integer` | Ya | min `0` |
 | `racks.*.used_capacity` | `integer` | Ya | min `0`, tidak boleh lebih besar dari `capacity` |
 
@@ -240,7 +240,7 @@ Body:
 | `name` | `string` | Tidak | unik, max `255` |
 | `racks` | `array` | Tidak | jika dikirim, minimal `1` item |
 | `racks.*.id` | `integer` | Tidak | pakai untuk update rack lama |
-| `racks.*.rack_number` | `integer` | Ya jika `racks` dikirim | min `1`, unik dalam array request |
+| `racks.*.rack_number` | `integer` | Ya jika `racks` dikirim | min `1`, max `10`, unik dalam array request |
 | `racks.*.capacity` | `integer` | Ya jika `racks` dikirim | min `0` |
 | `racks.*.used_capacity` | `integer` | Ya jika `racks` dikirim | min `0`, tidak boleh lebih besar dari `capacity` |
 
@@ -290,7 +290,7 @@ Body `POST /racks`:
 | Key | Tipe | Wajib | Aturan |
 |---|---|---|---|
 | `cabinet_id` | `integer` | Ya | `exists:cabinets,id` |
-| `rack_number` | `integer` | Ya | min `1`, unik per lemari |
+| `rack_number` | `integer` | Ya | min `1`, max `10`, unik per lemari |
 | `capacity` | `integer` | Ya | min `1`, max `100` |
 | `used_capacity` | `integer` | Tidak | default `0`, tidak boleh lebih besar dari `capacity` |
 
@@ -714,7 +714,7 @@ Body:
 | Key | Tipe | Wajib | Aturan |
 |---|---|---|---|
 | `cabinet_id` | `integer` | Ya | `exists:cabinets,id` |
-| `rack_id` | `integer` | Ya | `exists:racks,id` |
+| `rack_id` | `integer` | Ya | `exists:racks,id`. Backend validasi kapasitas: jika `used_capacity >= capacity`, return error `Rak tidak cukup kapasitas. Silakan pilih rak lain.` |
 | `slot_number` | `integer` | Ya | min `1` |
 | `notes_physical_location` | `string` | Tidak | nullable |
 
@@ -722,6 +722,7 @@ Perilaku:
 
 - Payload `notes_physical_location` dinormalisasi menjadi kolom `notes`.
 - `label_code` dibentuk otomatis dengan format `L{cabinet_id}-R{rack_id}-S{slot_number}`.
+- Backend validasi kapasitas: jika `used_capacity >= capacity` pada rack tujuan, return error `Rak tidak cukup kapasitas. Silakan pilih rak lain.`
 - `cabinet_id` harus mengacu ke `cabinets.id` yang valid.
 - `rack_id` harus mengacu ke `racks.id` yang valid.
 - Jika `{id}` tidak ada di tabel `archives`, Laravel mengembalikan `404`.
@@ -752,6 +753,7 @@ Perilaku:
 - Semua field memakai validasi `sometimes|required`, kecuali `notes_physical_location` yang `sometimes|nullable|string`.
 - Payload `notes_physical_location` dinormalisasi menjadi kolom `notes`.
 - `label_code` dihitung ulang dari kombinasi final `cabinet_id`, `rack_id`, dan `slot_number`, termasuk saat update partial.
+- Backend validasi kapasitas: jika `rack_id` berubah dan `used_capacity >= capacity` pada rack tujuan, return error `Rak tidak cukup kapasitas. Silakan pilih rak lain.` (Validasi di-skip jika `rack_id` tidak berubah).
 - Hanya field yang nilainya benar-benar berubah yang akan di-update.
 - Jika `{id}` tidak ada di tabel `archives`, Laravel mengembalikan `404`.
 - Jika archive belum punya physical location, endpoint mengembalikan `404` dengan message `Physical location tidak ditemukan`.

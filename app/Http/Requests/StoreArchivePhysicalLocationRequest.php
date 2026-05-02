@@ -24,7 +24,18 @@ class StoreArchivePhysicalLocationRequest extends FormRequest
     {
         return [
             'cabinet_id' => 'required|integer|min:0|exists:cabinets,id',
-            'rack_id' => 'required|integer|min:0|exists:racks,id',
+            'rack_id' => [
+                'required',
+                'integer',
+                'min:0',
+                'exists:racks,id',
+                function ($attribute, $value, $fail) {
+                    $rack = \App\Models\Rack::find($value);
+                    if ($rack && $rack->used_capacity >= $rack->capacity) {
+                        $fail('Rak tidak cukup kapasitas. Silakan pilih rak lain.');
+                    }
+                },
+            ],
             'slot_number' => 'required|integer|min:1',
             'notes_physical_location' => 'nullable|string',
         ];

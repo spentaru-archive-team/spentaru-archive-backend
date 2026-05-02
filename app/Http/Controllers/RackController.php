@@ -32,7 +32,7 @@ class RackController extends Controller
     {
         $validated = $request->validate([
             'cabinet_id' => 'required|integer|exists:cabinets,id',
-            'rack_number' => 'required|integer|min:1',
+            'rack_number' => 'required|integer|min:1|max:10',
             'capacity' => 'required|integer|min:1|max:100',
             'used_capacity' => 'sometimes|integer|min:0',
         ]);
@@ -83,7 +83,7 @@ class RackController extends Controller
 
         $validated = $request->validate([
             'cabinet_id' => 'sometimes|required|integer|exists:cabinets,id',
-            'rack_number' => 'sometimes|required|integer|min:1',
+            'rack_number' => 'sometimes|required|integer|min:1|max:10',
             'capacity' => 'sometimes|required|integer|min:1|max:100',
             'used_capacity' => 'sometimes|required|integer|min:0',
         ]);

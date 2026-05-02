@@ -28,7 +28,7 @@ class StoreCabinetRequest extends FormRequest
 
             'racks' => ['required', 'array', 'min:1'],
             'racks.*.id' => ['nullable', 'integer'],
-            'racks.*.rack_number' => ['required', 'integer', 'min:1', 'distinct'],
+            'racks.*.rack_number' => ['required', 'integer', 'min:1', 'max:10', 'distinct'],
             'racks.*.capacity' => ['required', 'integer', 'min:0'],
             'racks.*.used_capacity' => [
                 'required',
