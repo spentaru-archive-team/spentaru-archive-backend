@@ -110,13 +110,14 @@ class EventController extends Controller
     public function getPendingUploads(Request $request)
     {
         $user_id = Auth::user()->id;
-        $query = Event::with('user')->where('user_id', null, $user_id)->where('softfile_status', 'pending_upload');
+        $data = Event::with('user')->where('softfile_status', 'pending_upload')->get();
+        // $query = Event::with('user')->where('user_id', null, $user_id)->where('softfile_status', 'pending_upload');
 
-        if ($request->boolean('all')) {
-            $data = $query->get();
-        } else {
-            $data = $query->paginate(10);
-        }
+        // if ($request->boolean('all')) {
+        //     $data = $query->get();
+        // } else {
+        //     $data = $query->paginate(10);
+        // }
 
         return response()->json(
             [
