@@ -17,7 +17,7 @@ class CabinetController extends Controller
     public function index(Request $request): JsonResponse
     {
         $cabinets = Cabinet::with('racks')
-            ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'asc')
             ->get();
 
         return response()->json([
