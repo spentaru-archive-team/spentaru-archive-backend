@@ -1,6 +1,6 @@
 # spentaru-archive-backend
 
-Backend Laravel 13 untuk sistem arsip sekolah dengan auth Sanctum stateful berbasis session cookie, manajemen arsip, lokasi fisik arsip, master data, dashboard, AI gateway, workflow retensi arsip, serta fitur search, filter, dan sort pada endpoint list utama.
+Backend Laravel 13 untuk sistem arsip sekolah dengan auth Sanctum stateful berbasis session cookie, manajemen arsip, lokasi fisik arsip, master data, dashboard, workflow retensi arsip, serta fitur search, filter, dan sort pada endpoint list utama.
 
 ## Stack
 
@@ -22,13 +22,13 @@ Backend Laravel 13 untuk sistem arsip sekolah dengan auth Sanctum stateful berba
 - Search text via query `q` pada endpoint list `users`, `archives`, `events`, dan `archives/physical-locations`
 - Filter dan sort dinamis via query string pada endpoint list `archives`, `events`, dan `archives/physical-locations`
 - Dashboard ringkas untuk total arsip, kategori, subkategori, dan user
-- AI gateway untuk chat, OCR gambar, dan ekstraksi PDF native
+- AI tool endpoint untuk search arsip via service Python
 - Workflow retensi arsip: arsip tanpa lokasi, arsip siap pemusnahan, dan keputusan retensi
 
 ## Role
 
 - `admin`: CRUD master data, user, dan `archive-storage-rules`
-- `guru`: read master data, CRUD archive, akses dashboard, akses AI gateway, update profil sendiri
+- `guru`: read master data, CRUD archive, akses dashboard, update profil sendiri
 
 ## Menjalankan Project
 

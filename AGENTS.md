@@ -67,7 +67,7 @@ Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
 - User roles: `admin` dan `guru`.
 - RBAC aktif:
   - `admin` bisa CRUD master data, user, dan archive storage rule.
-  - `guru` bisa read master data, full CRUD archive, akses dashboard, AI gateway, dan update profil sendiri.
+  -   `guru` bisa read master data, full CRUD archive, akses dashboard, dan update profil sendiri.
 - Upload file archive memakai `multipart/form-data`, file fisik ke disk `public`, metadata ke tabel `archive_files`.
 - Endpoint list `users`, `archives`, `events`, dan `archives/physical-locations` sudah memakai query `q` untuk search berbasis Laravel Scout.
 - Endpoint list `archives`, `events`, dan `archives/physical-locations` juga mendukung filter dan sort dinamis via query string.
@@ -81,7 +81,6 @@ Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
 - Endpoint create/update `racks` menerima `used_capacity` dan menjaga validasi kapasitas tetap konsisten.
 - Archive punya workflow retensi: `retention_due_date`, `retention_status`, `retention_decided_at`, `retention_decided_by`, `retention_note`.
 - Ada endpoint arsip tanpa lokasi fisik, arsip siap pemusnahan, dan keputusan retensi arsip.
-- Ada AI gateway internal via `AiGatewayController` untuk health, chat, OCR gambar, dan ekstraksi PDF native.
 - Ada AI tool endpoint internal `POST /api/v1/ai/tools/archives/search` yang diakses service Python via shared secret header dan menerima `question` bebas.
 - Dashboard punya endpoint daftar guru dengan event yang belum memiliki archive.
 - Global JSON exception handling ada di `bootstrap/app.php` untuk 401, 403, 405, 422, dan 429.
@@ -109,10 +108,6 @@ retention domain
   /archives/{id}/retention/decide
 
 ai gateway
-  /ai/health
-  /ai/chat/ask
-  /ai/ocr/extract
-  /ai/pdf/extract-native
   /ai/tools/archives/search
 ```
 
@@ -163,22 +158,10 @@ app/Http/Controllers/ArchiveStorageRuleController.php
   CRUD archive storage rule (admin-only)
 
 app/Http/Controllers/AiGatewayController.php
-  proxy AI service + trace id handling
-
-app/Http/Requests/
-  validasi request archive, physical location, user, profile, dan AI gateway
-
-app/Http/Requests/ArchiveStorageRuleControllerStoreRequest.php
-  validasi create archive storage rule
-
-app/Http/Requests/ArchiveStorageRuleControllerUpdateRequest.php
-  validasi update archive storage rule
+  search archives tool endpoint
 
 app/Services/ArchiveStorageService.php
   cari slot available + assign label_code
-
-app/Services/AiGatewayService.php
-  HTTP client ke service AI upstream
 
 app/Models/User.php
   auth user + searchable fields untuk Scout

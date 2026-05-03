@@ -115,13 +115,6 @@ Route::prefix('v1')->group(function () {
         });
     });
 
-    Route::prefix('ai')->middleware('auth:sanctum')->group(function () {
-        Route::get('/health', [AiGatewayController::class, 'health']);
-        Route::post('/chat/ask', [AiGatewayController::class, 'ask']);
-        Route::post('/ocr/extract', [AiGatewayController::class, 'extractOcr']);
-        Route::post('/pdf/extract-native', [AiGatewayController::class, 'extractPdfNative']);
-    });
-
     Route::prefix('ai/tools')->middleware('ai.tool')->group(function () {
         Route::post('/archives/search', [AiGatewayController::class, 'searchArchivesTool']);
     });

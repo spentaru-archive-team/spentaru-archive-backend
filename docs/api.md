@@ -15,7 +15,7 @@ http://localhost:8000/api/v1
 - Konfigurasi search default repo saat ini memakai driver `collection` di `config/scout.php`.
 - Frontend SPA atau first-party perlu memanggil `GET /sanctum/csrf-cookie` sebelum `POST /api/v1/auth/login`.
 - Request terproteksi dikirim dengan cookie session dan header CSRF, bukan bearer token.
-- Upload file archive, OCR, dan PDF native memakai `multipart/form-data`.
+- Upload file archive memakai `multipart/form-data`.
 - Global error JSON yang sudah ditangani konsisten untuk `401`, `403`, `405`, `422`, dan `429`.
 
 ## Panduan Search, Filter, Sort
@@ -29,7 +29,7 @@ http://localhost:8000/api/v1
 ## Role
 
 - `admin`: CRUD master data, user, dan `archive-storage-rules`.
-- `guru`: read master data, full CRUD archive, akses dashboard, akses AI gateway, update profil sendiri.
+- `guru`: read master data, full CRUD archive, akses dashboard, update profil sendiri.
 
 ## Ringkasan Endpoint
 
@@ -119,14 +119,10 @@ http://localhost:8000/api/v1
 | `GET` | `/dashboard` | Ya | Ambil total arsip, kategori, subkategori, user |
 | `GET` | `/dashboard/teachers-without-archives` | Ya | List event guru yang belum punya archive, memuat relasi `user` |
 
-### AI Gateway
+### AI Tool
 
 | Method | Endpoint | Auth | Keterangan |
 |---|---|---|---|
-| `GET` | `/ai/health` | Ya | Status upstream AI service |
-| `POST` | `/ai/chat/ask` | Ya | Chat ke AI service |
-| `POST` | `/ai/ocr/extract` | Ya | OCR file gambar |
-| `POST` | `/ai/pdf/extract-native` | Ya | Ekstraksi teks PDF native |
 | `POST` | `/ai/tools/archives/search` | Header internal AI | Tool endpoint untuk agent Python mencari arsip berdasarkan `question` bebas |
 
 ## AI Tool Header
@@ -1249,48 +1245,6 @@ Contoh bentuk item:
   }
 }
 ```
-
-## 17. AI Gateway
-
-Semua endpoint AI gateway memakai auth Sanctum dan dapat meneruskan `trace_id` atau header `X-Trace-Id`.
-
-### Chat Ask
-
-```http
-POST /api/v1/ai/chat/ask
-```
-
-Body:
-
-| Key | Tipe | Wajib | Keterangan |
-|---|---|---|---|
-| `message` | `string` | Ya | prompt user |
-| `context` | `mixed` | Tidak | diteruskan apa adanya |
-| `use_search` | `boolean` | Tidak | default `false` |
-
-### OCR Extract
-
-```http
-POST /api/v1/ai/ocr/extract
-```
-
-Body:
-
-| Key | Tipe | Wajib | Aturan |
-|---|---|---|---|
-| `file` | `file` | Ya | `jpg`, `jpeg`, `png`, `webp`, `bmp`, `tiff`, `tif` |
-
-### PDF Extract Native
-
-```http
-POST /api/v1/ai/pdf/extract-native
-```
-
-Body:
-
-| Key | Tipe | Wajib | Aturan |
-|---|---|---|---|
-| `file` | `file` | Ya | `pdf` |
 
 ## 18. Archive Storage Rules
 
