@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Support\Str as SupportStr;
@@ -230,6 +231,17 @@ class ArchiveController extends Controller
 
         $year = intval($req_archive['year']);
 
+        // OCR
+        $response = Http::attach(
+            'file', // nama field file yang diterima API tujuan
+            file_get_contents($file->getRealPath()),
+            $file->getClientOriginalName()
+        )->post('http://localhost:5000/api/extract/text');
+        // Ambil response jadi variable
+        $ocr_result = $response->json();
+        $ocr = $ocr_result['data']['text'];
+        // OCR end
+
         $payload = $req_archive + [
             'status' => 'uploaded',
             'uploader' => str(Auth::user()->id),
@@ -237,16 +249,24 @@ class ArchiveController extends Controller
             'retention_status' => 'active',
         ];
 
+        $payload_ocr = [
+            'extracted_text' => $ocr,
+        ];
+
+        $payload_archive = [
+            'file_name' => $filename,
+            'file_size' => $file->getSize(),
+            'file_type' => strtolower($file->getClientOriginalExtension()),
+            'file_url' => '/storage/'.$path,
+        ];
+
         try {
-            $archive = DB::transaction(function () use ($path, $filename, $file, $req_archive, $payload) {
+            $archive = DB::transaction(function () use ($req_archive, $payload, $payload_ocr, $payload_archive) {
                 $archive = Archive::create($payload);
 
-                $archive->files()->create([
-                    'file_name' => $filename,
-                    'file_size' => $file->getSize(),
-                    'file_type' => strtolower($file->getClientOriginalExtension()),
-                    'file_url' => '/storage/'.$path,
-                ]);
+                $archive->files()->create($payload_archive);
+
+                $archive->ocrText()->create($payload_ocr);
 
                 $this->storageService->assignLocation($archive, $req_archive['category_id'], $req_archive['subcategory_id'] ?? null);
 
