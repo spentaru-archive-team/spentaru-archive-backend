@@ -236,7 +236,7 @@ class ArchiveController extends Controller
             'file', // nama field file yang diterima API tujuan
             file_get_contents($file->getRealPath()),
             $file->getClientOriginalName()
-        )->post('http://localhost:5000/api/extract/text');
+        )->post(env('OCR_LINK', ''));
         // Ambil response jadi variable
         $ocr_result = $response->json();
         $ocr = $ocr_result['data']['text'];
@@ -351,13 +351,25 @@ class ArchiveController extends Controller
             $storedPath = $file->storeAs('uploads', $filename, 'public');
             $path = '/storage/'.$storedPath;
 
+            // OCR
+            $response = Http::attach(
+                'file', // nama field file yang diterima API tujuan
+                file_get_contents($file->getRealPath()),
+                $file->getClientOriginalName()
+            )->post(env('OCR_LINK', ''));
+            // Ambil response jadi variable
+            $ocr_result = $response->json();
+            $ocr = $ocr_result['data']['text'];
+            $ocr_payload = ['extracted_text' => $ocr];
+            // OCR end
+
             if (! $this->hasSameValue($archive->status, 'uploaded')) {
                 $archiveData['status'] = 'uploaded';
             }
         }
 
         try {
-            DB::transaction(function () use ($archive, $archiveData, $file, $filename, $path, $needsRelocation, $oldRack) {
+            DB::transaction(function () use ($archive, $archiveData, $file, $filename, $path, $needsRelocation, $oldRack, $ocr_payload) {
                 if ($archiveData !== []) {
                     $archive->update($archiveData);
                 }
@@ -370,6 +382,7 @@ class ArchiveController extends Controller
                         'file_type' => strtolower($file->getClientOriginalExtension()),
                         'file_url' => $path,
                     ]);
+                    $archive->ocrText()->update($ocr_payload);
                 }
 
                 if ($needsRelocation && $archive->physicalLocation) {
