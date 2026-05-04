@@ -8,6 +8,8 @@ use App\Http\Requests\UpdateResetPasswordRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class UserController extends Controller
 {
@@ -80,11 +82,27 @@ class UserController extends Controller
     {
         $user = User::findOrFail($id);
 
+        if ($request->has('role') && $request->role !== $user->role) {
+            Log::warning('User role changed', [
+                'user_id' => $user->id,
+                'username' => $user->username,
+                'old_role' => $user->role,
+                'new_role' => $request->role,
+                'changed_by' => Auth::id(),
+            ]);
+        }
+
+        $updateData = $request->safe()->except('password');
+
+        if ($request->user()?->role !== 'admin' || $request->route('id') === (string) $request->user()->id) {
+            unset($updateData['role']);
+        }
+
         if ($request->filled('password')) {
             $hashed_password = bcrypt($request->password);
-            $user->update($request->safe()->except('password') + ['password' => $hashed_password]);
+            $user->update($updateData + ['password' => $hashed_password]);
         } else {
-            $user->update($request->safe()->except('password'));
+            $user->update($updateData);
         }
 
         return response()->json([

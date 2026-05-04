@@ -74,18 +74,20 @@ class ArchiveController extends Controller
 
     private function applyArchiveSearch(Builder $query, string $q): void
     {
-        $query->where(function (Builder $searchQuery) use ($q) {
-            $searchQuery->where('archives.title', 'like', "%{$q}%")
-                ->orWhere('archives.notes', 'like', "%{$q}%")
-                ->orWhere('archives.year', 'like', "%{$q}%")
-                ->orWhereHas('category', function (Builder $categoryQuery) use ($q) {
-                    $categoryQuery->where('name', 'like', "%{$q}%");
+        $escaped = str_replace(['%', '_', '\\'], ['\%', '\_', '\\\\'], $q);
+
+        $query->where(function (Builder $searchQuery) use ($escaped) {
+            $searchQuery->where('archives.title', 'like', "%{$escaped}%")
+                ->orWhere('archives.notes', 'like', "%{$escaped}%")
+                ->orWhere('archives.year', 'like', "%{$escaped}%")
+                ->orWhereHas('category', function (Builder $categoryQuery) use ($escaped) {
+                    $categoryQuery->where('name', 'like', "%{$escaped}%");
                 })
-                ->orWhereHas('subcategory', function (Builder $subcategoryQuery) use ($q) {
-                    $subcategoryQuery->where('name', 'like', "%{$q}%");
+                ->orWhereHas('subcategory', function (Builder $subcategoryQuery) use ($escaped) {
+                    $subcategoryQuery->where('name', 'like', "%{$escaped}%");
                 })
-                ->orWhereHas('event', function (Builder $eventQuery) use ($q) {
-                    $eventQuery->where('title', 'like', "%{$q}%");
+                ->orWhereHas('event', function (Builder $eventQuery) use ($escaped) {
+                    $eventQuery->where('title', 'like', "%{$escaped}%");
                 });
         });
     }
@@ -208,6 +210,15 @@ class ArchiveController extends Controller
      */
     public function store(StoreArchiveRequest $request)
     {
+        $allowed_mimes = ["application/pdf","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document","application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"];
+        if (!in_array($request->file('file')->getMimeType(), $allowed_mimes, true)) {
+            return response()->json([
+                ['status' => 'error', 'message' => 'Tipe file tidak diizinkan']
+            ], 422);
+        }
+
+
+
 
         $jumlah_subcategory = Subcategory::where('category_id', $request->category_id)->count();
         if ($jumlah_subcategory > 0) {
@@ -232,11 +243,14 @@ class ArchiveController extends Controller
         $year = intval($req_archive['year']);
 
         // OCR
-        $response = Http::attach(
-            'file', // nama field file yang diterima API tujuan
+        $aiBaseUrl = rtrim((string) config('services.ai_gateway.base_url', 'https://localhost:5000'), '/');
+        $aiTimeout = (int) config('services.ai_gateway.timeout', 15);
+
+        $response = Http::timeout($aiTimeout)->attach(
+            'file',
             file_get_contents($file->getRealPath()),
             $file->getClientOriginalName()
-        )->post(env('OCR_LINK', ''));
+        )->post("{$aiBaseUrl}/api/extract/text");
         // Ambil response jadi variable
         $ocr_result = $response->json();
         $ocr = $ocr_result['data']['text'];
@@ -352,11 +366,14 @@ class ArchiveController extends Controller
             $path = '/storage/'.$storedPath;
 
             // OCR
-            $response = Http::attach(
-                'file', // nama field file yang diterima API tujuan
+            $aiBaseUrl = rtrim((string) config('services.ai_gateway.base_url', 'https://localhost:5000'), '/');
+            $aiTimeout = (int) config('services.ai_gateway.timeout', 15);
+
+            $response = Http::timeout($aiTimeout)->attach(
+                'file',
                 file_get_contents($file->getRealPath()),
                 $file->getClientOriginalName()
-            )->post(env('OCR_LINK', ''));
+            )->post("{$aiBaseUrl}/api/extract/text");
             // Ambil response jadi variable
             $ocr_result = $response->json();
             $ocr = $ocr_result['data']['text'];
@@ -482,5 +499,31 @@ class ArchiveController extends Controller
             'message' => 'keputusan retensi berhasil disimpan',
             'data' => $archive->fresh(),
         ]);
+    }
+
+    public function preview(string $id)
+    {
+        $archive = Archive::with('files')->findOrFail($id);
+
+        if (! $archive->files?->file_url) {
+            abort(404, 'File tidak ditemukan');
+        }
+
+        $storagePath = Str::after($archive->files->file_url, '/storage/');
+
+        return Storage::disk('public')->response($storagePath, $archive->files->file_name);
+    }
+
+    public function download(string $id)
+    {
+        $archive = Archive::with('files')->findOrFail($id);
+
+        if (! $archive->files?->file_url) {
+            abort(404, 'File tidak ditemukan');
+        }
+
+        $storagePath = Str::after($archive->files->file_url, '/storage/');
+
+        return Storage::disk('public')->download($storagePath, $archive->files->file_name);
     }
 }

@@ -67,11 +67,11 @@ Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
 - User roles: `admin` dan `guru`.
 - RBAC aktif:
   - `admin` bisa CRUD master data, user, dan archive storage rule.
-  -   `guru` bisa read master data, full CRUD archive, akses dashboard, dan update profil sendiri.
+  - `guru` bisa read master data, full CRUD archive, akses dashboard, dan update profil sendiri.
 - Upload file archive memakai `multipart/form-data`, file fisik ke disk `public`, metadata ke tabel `archive_files`.
 - Endpoint list `users`, `archives`, `events`, dan `archives/physical-locations` sudah memakai query `q` untuk search berbasis Laravel Scout.
 - Endpoint list `archives`, `events`, dan `archives/physical-locations` juga mendukung filter dan sort dinamis via query string.
-- Default konfigurasi Scout saat ini memakai driver `collection` dari `config/scout.php`.
+- Default konfigurasi Scout saat ini memakai driver `database` dari `config/scout.php`.
 - Archive bisa punya `physical_location` dan `ocr_text`.
 - Event punya `softfile_status` (`uploaded` / `pending_upload`) yang disinkronkan dari keberadaan `archive_files` pada archive terkait.
 - Archive auto-assign physical location via `ArchiveStorageService` saat create archive bila rule/rak tersedia.
@@ -83,7 +83,16 @@ Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
 - Ada endpoint arsip tanpa lokasi fisik, arsip siap pemusnahan, dan keputusan retensi arsip.
 - Ada AI tool endpoint internal `POST /api/v1/ai/tools/archives/search` yang diakses service Python via shared secret header dan menerima `question` bebas.
 - Dashboard punya endpoint daftar guru dengan event yang belum memiliki archive.
-- Global JSON exception handling ada di `bootstrap/app.php` untuk 401, 403, 405, 422, dan 429.
+- Global JSON exception handling ada di `bootstrap/app.php` untuk 401, 403, 405, 422, 429, dan 500.
+- Semua endpoint CRUD memiliki rate limiting: POST/PUT 30 req/menit, DELETE 10 req/menit, GET list 60 req/menit.
+- Upload file divalidasi MIME type server-side (`mimetypes:`) di controller, bukan hanya ekstensi.
+- File arsip bisa diakses via endpoint terautentikasi `GET /api/v1/archives/{id}/preview` dan `GET /api/v1/archives/{id}/download`.
+- Search query archive sudah escape karakter wildcard SQL (`%`, `_`, `\`) untuk mencegah abuse.
+- Perubahan role user di-log dan hanya bisa dilakukan oleh admin (bukan self-update).
+- Komunikasi AI service OCR memakai konfigurasi HTTPS via `config/services.ai_gateway`.
+- Middleware `EnsureFrontendRequestsAreStateful` ditambahkan eksplisit untuk CSRF protection.
+- CORS di-restrict ke origins, methods, dan headers eksplisit; wildcard dihapus.
+- Default `.env.example`: `APP_DEBUG=false`, `LOG_LEVEL=warning`, `SESSION_SECURE_COOKIE=true`, `SESSION_EXPIRE_ON_CLOSE=true`.
 
 ## Domain Map
 

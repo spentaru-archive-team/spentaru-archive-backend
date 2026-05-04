@@ -26,7 +26,7 @@ class StoreArchiveRequest extends FormRequest
             'title' => 'required|string',
             'year' => 'required|integer',
             'notes' => 'nullable|string',
-            'file' => 'required|file|mimes:pdf,doc,docx,xls,xlsx|max:10240',
+            'file' => 'required|file|mimes:pdf,doc,docx,xls,xlsx|max:10240|mimetypes:application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'event_id' => 'nullable|integer|min:0|exists:events,id',
             'category_id' => 'required|integer|min:0|exists:archive_categories,id',
             'subcategory_id' => 'nullable|integer|min:0|exists:subcategories,id',

@@ -23,13 +23,18 @@ class UpdateUserRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
+        $rules = [
             'name' => 'string|max:200|required',
             'subject' => 'string|max:200|required',
             'position' => 'string|max:200|required',
-            'username' => 'string|max:120|required',
+            'username' => 'string|max:120|required|unique:users,username,'.$this->route('id'),
             'password' => ['string', 'min:8', 'nullable', Password::min(8)->letters()->numbers()->mixedCase()],
-            'role' => 'required|in:guru,admin|required',
         ];
+
+        if ($this->user()?->role === 'admin' && $this->route('id') !== (string) $this->user()->id) {
+            $rules['role'] = 'sometimes|required|in:guru,admin';
+        }
+
+        return $rules;
     }
 }

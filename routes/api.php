@@ -27,22 +27,24 @@ Route::prefix('v1')->group(function () {
     Route::prefix('archives')->group(function () {
         Route::middleware('auth:sanctum')->group(function () {
             Route::get('/', [ArchiveController::class, 'index']);
-            Route::post('/', [ArchiveController::class, 'store']);
+            Route::post('/', [ArchiveController::class, 'store'])->middleware('throttle:30,1');
 
             Route::get('/without-location', [ArchiveController::class, 'archivesWithoutLocation']);
             Route::get('/physical-locations', [ArchivePhysicalLocationController::class, 'index']);
 
             Route::get('/{id}', [ArchiveController::class, 'show']);
-            Route::put('/{id}', [ArchiveController::class, 'update']);
-            Route::delete('/{id}', [ArchiveController::class, 'destroy']);
+            Route::put('/{id}', [ArchiveController::class, 'update'])->middleware('throttle:30,1');
+            Route::delete('/{id}', [ArchiveController::class, 'destroy'])->middleware('throttle:10,1');
+            Route::get('/{id}/preview', [ArchiveController::class, 'preview'])->middleware('throttle:60,1');
+            Route::get('/{id}/download', [ArchiveController::class, 'download'])->middleware('throttle:30,1');
 
             Route::get('/{id}/physical-locations', [ArchivePhysicalLocationController::class, 'show']);
-            Route::post('/{id}/physical-locations', [ArchivePhysicalLocationController::class, 'store']);
-            Route::put('/{id}/physical-locations', [ArchivePhysicalLocationController::class, 'update']);
-            Route::delete('/{id}/physical-locations', [ArchivePhysicalLocationController::class, 'destroy']);
+            Route::post('/{id}/physical-locations', [ArchivePhysicalLocationController::class, 'store'])->middleware('throttle:30,1');
+            Route::put('/{id}/physical-locations', [ArchivePhysicalLocationController::class, 'update'])->middleware('throttle:30,1');
+            Route::delete('/{id}/physical-locations', [ArchivePhysicalLocationController::class, 'destroy'])->middleware('throttle:10,1');
 
             Route::get('/retention/ready', [ArchiveController::class, 'readyForDestruction']);
-            Route::patch('/{id}/retention/decide', [ArchiveController::class, 'decideRetention']);
+            Route::patch('/{id}/retention/decide', [ArchiveController::class, 'decideRetention'])->middleware('throttle:10,1');
 
         });
     });
@@ -51,7 +53,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/', [EventController::class, 'index']);
         Route::get('/pending-uploads', [EventController::class, 'getPendingUploads']);
         Route::get('/{id}', [EventController::class, 'show']);
-        Route::middleware(['auth:sanctum', 'admin'])->group(function () {
+        Route::middleware(['auth:sanctum', 'admin', 'throttle:30,1'])->group(function () {
             Route::post('/', [EventController::class, 'store']);
             Route::put('/{id}', [EventController::class, 'update']);
             Route::delete('/{id}', [EventController::class, 'destroy']);
@@ -62,7 +64,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/', [CategoryController::class, 'index']);
         Route::get('/{id}', [CategoryController::class, 'show']);
 
-        Route::middleware(['auth:sanctum', 'admin'])->group(function () {
+        Route::middleware(['auth:sanctum', 'admin', 'throttle:30,1'])->group(function () {
             Route::post('/', [CategoryController::class, 'store']);
             Route::put('/{id}', [CategoryController::class, 'update']);
             Route::delete('/{id}', [CategoryController::class, 'destroy']);
@@ -72,7 +74,7 @@ Route::prefix('v1')->group(function () {
     Route::prefix('subcategories')->middleware('auth:sanctum')->group(function () {
         Route::get('/', [SubcategoryController::class, 'index']);
         Route::get('/{id}', [SubcategoryController::class, 'show']);
-        Route::middleware(['auth:sanctum', 'admin'])->group(function () {
+        Route::middleware(['auth:sanctum', 'admin', 'throttle:30,1'])->group(function () {
             Route::post('/', [SubcategoryController::class, 'store']);
             Route::put('/{id}', [SubcategoryController::class, 'update']);
             Route::delete('/{id}', [SubcategoryController::class, 'destroy']);
@@ -82,7 +84,7 @@ Route::prefix('v1')->group(function () {
     Route::prefix('cabinets')->middleware('auth:sanctum')->group(function () {
         Route::get('/', [CabinetController::class, 'index']);
         Route::get('/{id}', [CabinetController::class, 'show']);
-        Route::middleware(['auth:sanctum', 'admin'])->group(function () {
+        Route::middleware(['auth:sanctum', 'admin', 'throttle:30,1'])->group(function () {
             Route::post('/', [CabinetController::class, 'store']);
             Route::put('/{id}', [CabinetController::class, 'update']);
             Route::delete('/{id}', [CabinetController::class, 'destroy']);
@@ -93,7 +95,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/', [RackController::class, 'index']);
         Route::get('/{id}', [RackController::class, 'show']);
 
-        Route::middleware(['auth:sanctum', 'admin'])->group(function () {
+        Route::middleware(['auth:sanctum', 'admin', 'throttle:30,1'])->group(function () {
             Route::post('/', [RackController::class, 'store']);
             Route::put('/{id}', [RackController::class, 'update']);
             Route::delete('/{id}', [RackController::class, 'destroy']);
@@ -103,10 +105,10 @@ Route::prefix('v1')->group(function () {
     Route::prefix('users')->group(function () {
         Route::middleware('auth:sanctum')->group(function () {
             Route::get('/{id}', [UserController::class, 'show']);
-            Route::put('/me', [UserController::class, 'updateMe']);
+            Route::put('/me', [UserController::class, 'updateMe'])->middleware('throttle:10,1');
         });
 
-        Route::middleware(['auth:sanctum', 'admin'])->group(function () {
+        Route::middleware(['auth:sanctum', 'admin', 'throttle:30,1'])->group(function () {
             Route::put('/{id}', [UserController::class, 'update']);
             Route::get('/', [UserController::class, 'index']);
             Route::post('/', [UserController::class, 'store']);
@@ -124,7 +126,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/teachers-without-archives', [DashboardController::class, 'teachersWithoutArchives']);
     });
 
-    Route::middleware(['admin', 'auth:sanctum'])->group(function () {
+    Route::middleware(['admin', 'auth:sanctum', 'throttle:30,1'])->group(function () {
         Route::prefix('archive-storage-rules')->group(function () {
             Route::get('/', [ArchiveStorageRuleController::class, 'index']);
             Route::post('/', [ArchiveStorageRuleController::class, 'store']);

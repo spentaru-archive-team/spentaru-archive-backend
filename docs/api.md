@@ -3,7 +3,7 @@
 Base URL lokal:
 
 ```text
-http://localhost:8000/api/v1
+https://localhost:8000/api/v1
 ```
 
 ## Konvensi Umum
@@ -12,11 +12,13 @@ http://localhost:8000/api/v1
 - Auth API aktif memakai Laravel Sanctum stateful berbasis session cookie.
 - Endpoint internal AI tool `/ai/tools/archives/search` tidak memakai session Sanctum; aksesnya memakai shared secret header untuk service Python AI.
 - Fitur list tertentu mendukung `q` untuk pencarian teks bebas, `filters[...]` untuk penyaringan field, dan `sort` untuk pengurutan hasil.
-- Konfigurasi search default repo saat ini memakai driver `collection` di `config/scout.php`.
+- Konfigurasi search default repo saat ini memakai driver `database` di `config/scout.php`.
 - Frontend SPA atau first-party perlu memanggil `GET /sanctum/csrf-cookie` sebelum `POST /api/v1/auth/login`.
 - Request terproteksi dikirim dengan cookie session dan header CSRF, bukan bearer token.
 - Upload file archive memakai `multipart/form-data`.
-- Global error JSON yang sudah ditangani konsisten untuk `401`, `403`, `405`, `422`, dan `429`.
+- Global error JSON yang sudah ditangani konsisten untuk `401`, `403`, `405`, `422`, `429`, dan `500`.
+- Semua endpoint CRUD memakai rate limiting: POST/PUT 30 req/menit, DELETE 10 req/menit, GET list 60 req/menit.
+- File arsip hanya bisa diakses via endpoint terautentikasi `GET /api/v1/archives/{id}/preview` dan `GET /api/v1/archives/{id}/download`. URL langsung `/storage/uploads/...` tidak lagi bisa diakses publik.
 
 ## Panduan Search, Filter, Sort
 
@@ -53,6 +55,8 @@ http://localhost:8000/api/v1
 | `GET` | `/archives/{id}` | Ya | Detail archive |
 | `PUT` | `/archives/{id}` | Ya | Update archive, file opsional |
 | `DELETE` | `/archives/{id}` | Ya | Hapus archive |
+| `GET` | `/archives/{id}/preview` | Ya | Preview file archive (authenticated), throttle 60 req/menit |
+| `GET` | `/archives/{id}/download` | Ya | Download file archive (authenticated), throttle 30 req/menit |
 | `GET` | `/archives/{id}/physical-locations` | Ya | Detail lokasi fisik archive |
 | `POST` | `/archives/{id}/physical-locations` | Ya | Buat lokasi fisik manual |
 | `PUT` | `/archives/{id}/physical-locations` | Ya | Ubah lokasi fisik |
@@ -97,7 +101,7 @@ http://localhost:8000/api/v1
 | `GET` | `/users` | Admin | List user, mendukung query search `q`, filter role, dan urut `id` ascending |
 | `POST` | `/users` | Admin | Create user |
 | `GET` | `/users/{id}` | Ya | Detail user |
-| `PUT` | `/users/{id}` | Admin | Update user |
+| `PUT` | `/users/{id}` | Admin | Update user. Field `role` hanya bisa diubah oleh admin dan tidak bisa diubah pada akun sendiri |
 | `DELETE` | `/users/{id}` | Admin | Hapus user |
 | `PUT` | `/users/{id}/reset-password` | Admin | Reset password user |
 | `PUT` | `/users/me` | Ya | Update profil sendiri |
@@ -655,12 +659,205 @@ Body `multipart/form-data`:
 Perilaku:
 
 - File disimpan ke disk `public` pada path `uploads/<slug>.<ext>`.
+- MIME type file divalidasi server-side: hanya `application/pdf`, `application/msword`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`, `application/vnd.ms-excel`, `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` yang diterima.
 - `retention_due_date` otomatis diisi ke awal tahun arsip + 10 tahun.
 - `retention_status` awal adalah `active`.
 - Jika category sudah punya subcategory, maka `subcategory_id` wajib diisi.
 - Sistem mencoba auto-assign lokasi fisik melalui `ArchiveStorageService`.
 
-## 7. Update Archive
+## 7. Preview & Download Archive
+
+> **Penting:** File arsip **tidak lagi bisa diakses langsung** melalui URL `/storage/uploads/filename.pdf`. Seluruh akses file harus melalui endpoint terautentikasi. Ini diterapkan untuk mencegah kebocoran data arsip sensitif kepada pihak yang tidak berwenang.
+
+### Arsitektur Akses File
+
+File fisik tetap disimpan di `storage/app/public/uploads/` dan tersedia via symlink `public/storage/uploads/`. Namun, **akses HTTP langsung ke path ini harus diblokir di web server production** (Nginx/Apache). Satu-satunya cara resmi mengakses file adalah melalui endpoint authenticated yang melakukan validasi session.
+
+**Perbandingan sistem lama vs baru:**
+
+| Aspek | Sistem Lama | Sistem Baru |
+|---|---|---|
+| Akses file | Langsung via `/storage/uploads/filename.pdf` | Hanya via `/preview` atau `/download` |
+| Autentikasi | Tidak diperlukan | Wajib Sanctum session |
+| Rate limiting | Tidak ada | Preview 60 req/menit, Download 30 req/menit |
+| Response | Static file | Laravel `Storage::response/download` |
+
+### Preview File
+
+```http
+GET /api/v1/archives/{id}/preview
+```
+
+**Auth:** User login via Sanctum session cookie
+
+**Throttle:** 60 request per menit
+
+**Perilaku:**
+
+- Endpoint mencari archive berdasarkan `{id}` dan memuat relasi `files`
+- Jika archive tidak ditemukan, Laravel mengembalikan `404`
+- Jika archive tidak punya file (`file_url` kosong), endpoint mengembalikan `404` dengan message `File tidak ditemukan`
+- Response berupa file inline (`Content-Disposition: inline`) sehingga browser menampilkan file di tab/iframe
+- Content-Type otomatis sesuai tipe file tersimpan (`application/pdf`, `application/msword`, dll.)
+- Cocok untuk `<iframe>`, `<embed>`, atau PDF viewer di frontend
+
+**Contoh request:**
+
+```bash
+curl -c cookies.txt -b cookies.txt \
+  -H "X-XSRF-TOKEN: <token>" \
+  https://localhost:8000/api/v1/archives/12/preview
+```
+
+**Contoh response headers:**
+
+```
+HTTP/1.1 200 OK
+Content-Type: application/pdf
+Content-Disposition: inline; filename="laporan_keuangan_abc123.pdf"
+Content-Length: 102400
+Cache-Control: no-cache, private
+
+[binary PDF data]
+```
+
+**Frontend React:**
+
+```tsx
+// Embed di iframe
+<iframe
+  src={`/api/v1/archives/${archiveId}/preview`}
+  width="100%"
+  height="600px"
+/>
+
+// Fetch blob dan buka di tab baru
+async function preview(archiveId: number) {
+  const res = await fetch(`/api/v1/archives/${archiveId}/preview`, {
+    credentials: 'include',
+    headers: { 'X-XSRF-TOKEN': getCsrfToken() },
+  });
+  const blob = await res.blob();
+  window.open(URL.createObjectURL(blob), '_blank');
+}
+```
+
+**Frontend Vue:**
+
+```vue
+<template>
+  <iframe :src="`/api/v1/archives/${archiveId}/preview`" width="100%" height="600px" />
+</template>
+```
+
+### Download File
+
+```http
+GET /api/v1/archives/{id}/download
+```
+
+**Auth:** User login via Sanctum session cookie
+
+**Throttle:** 30 request per menit
+
+**Perilaku:**
+
+- Endpoint mencari archive berdasarkan `{id}` dan memuat relasi `files`
+- Jika archive tidak ditemukan, Laravel mengembalikan `404`
+- Jika archive tidak punya file (`file_url` kosong), endpoint mengembalikan `404` dengan message `File tidak ditemukan`
+- Response berupa attachment (`Content-Disposition: attachment`) sehingga browser langsung mendownload file
+- Nama file sesuai `file_name` yang tersimpan di database (format: `{original}_{random}_{timestamp}.{ext}`)
+
+**Contoh request:**
+
+```bash
+curl -c cookies.txt -b cookies.txt \
+  -H "X-XSRF-TOKEN: <token>" \
+  -O -J \
+  https://localhost:8000/api/v1/archives/12/download
+```
+
+**Contoh response headers:**
+
+```
+HTTP/1.1 200 OK
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="laporan_keuangan_abc123.pdf"
+Content-Length: 102400
+Content-Transfer-Encoding: binary
+
+[binary PDF data]
+```
+
+**Frontend React:**
+
+```tsx
+// Link langsung (paling sederhana)
+<a href={`/api/v1/archives/${archiveId}/download`} download={fileName}>
+  Download {fileName}
+</a>
+
+// Fetch blob untuk nama custom
+async function download(archiveId: number, customName: string) {
+  const res = await fetch(`/api/v1/archives/${archiveId}/download`, {
+    credentials: 'include',
+    headers: { 'X-XSRF-TOKEN': getCsrfToken() },
+  });
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = customName;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+```
+
+**Frontend Vue:**
+
+```vue
+<template>
+  <a :href="`/api/v1/archives/${archiveId}/download`" :download="fileName">
+    Download
+  </a>
+</template>
+```
+
+### Error Handling
+
+| Status | Kondisi | Response |
+|---|---|---|
+| `401` | Tidak terautentikasi | `{"status": "error", "message": "Unauthenticated"}` |
+| `404` | Archive tidak ditemukan | `No query results for model...` |
+| `404` | Archive ada tapi tanpa file | `{"status": "error", "message": "File tidak ditemukan"}` |
+| `429` | Melebihi rate limit | `{"status": "error", "message": "Terlalu banyak request"}` |
+
+### Konfigurasi Web Server Production
+
+Blokir akses langsung ke `public/storage/uploads/`:
+
+**Nginx:**
+
+```nginx
+location /storage/uploads/ {
+    deny all;
+    return 403;
+}
+```
+
+**Apache (`public/storage/uploads/.htaccess`):**
+
+```apache
+Deny from all
+```
+
+### Catatan Keamanan
+
+1. **Jangan gunakan `file_url` dari API secara langsung** — Field `archive.files.file_url` masih berisi path `/storage/uploads/...`. Frontend tidak boleh mengakses URL ini. Gunakan `/preview` dan `/download` sebagai gantinya.
+2. **Filename di-obfuscate** — Format `{original}_{random10}_{timestamp}.{ext}` untuk mencegah guessing attack.
+3. **MIME type divalidasi server-side** — Upload file divalidasi dengan `mimetypes:` di controller, bukan hanya ekstensi.
+
+## 8. Update Archive
 
 ```http
 PUT /api/v1/archives/{id}
@@ -673,7 +870,7 @@ Perilaku:
 - Jika file diganti, metadata file lama dihapus dan file fisik lama ikut dibersihkan setelah transaksi sukses.
 - Jika `category_id` atau `subcategory_id` berubah, archive akan auto-relocate ke rak baru (rack lama di-decrement, rack baru di-increment).
 
-## 8. Arsip Tanpa Lokasi
+## 9. Arsip Tanpa Lokasi
 
 ```http
 GET /api/v1/archives/without-location
@@ -681,7 +878,7 @@ GET /api/v1/archives/without-location
 
 Mengembalikan semua archive yang belum punya relasi `physicalLocation`.
 
-## 9. Physical Location Archive
+## 10. Physical Location Archive
 
 ### List semua physical location
 
@@ -923,7 +1120,7 @@ Catatan untuk frontend:
 - Jika sumber data berasal dari list `/api/v1/archives/physical-locations`, jangan kirim `data.id` ke endpoint nested ini.
 - Untuk endpoint nested `/api/v1/archives/{id}/physical-locations`, gunakan `data.archive_id` dari hasil list physical location, atau gunakan `archive.id` dari endpoint archive.
 
-## 10. List Event
+## 11. List Event
 
 ```http
 GET /api/v1/events
@@ -1050,7 +1247,7 @@ Catatan penting:
 - Walau endpoint ini punya relasi `user` dan `archives`, filter relasi `filters[user][name]...` atau `filters[archives][title]...` belum tentu bekerja pada kode aktif jika backend belum menyiapkan dukungan relasi tersebut.
 - Sort relasi tetap tersedia karena model `Event` memakai `Sortable`.
 
-## 11. List Event Pending Upload
+## 12. List Event Pending Upload
 
 ```http
 GET /api/v1/events/pending-uploads
@@ -1105,7 +1302,7 @@ Response sukses:
 }
 ```
 
-## 12. Create Event
+## 13. Create Event
 
 ```http
 POST /api/v1/events
@@ -1128,7 +1325,7 @@ Catatan:
 - `softfile_status` tidak diinput manual pada endpoint event.
 - Nilainya otomatis `pending_upload` atau `uploaded` berdasarkan ada tidaknya archive pada event yang memiliki relasi `files`.
 
-## 13. Update Event
+## 14. Update Event
 
 ```http
 PUT /api/v1/events/{id}
@@ -1142,7 +1339,7 @@ Aturan:
 - `description` boleh `nullable|string`.
 - Response sukses memuat relasi `user`.
 
-## 14. Delete Event
+## 15. Delete Event
 
 ```http
 DELETE /api/v1/events/{id}
@@ -1153,7 +1350,7 @@ Perilaku:
 - Event tidak bisa dihapus jika masih punya archive.
 - Jika masih punya archive, endpoint mengembalikan `422` dengan message `Tidak dapat menghapus event yang memiliki arsip`.
 
-## 15. Retention
+## 16. Retention
 
 ### Arsip siap pemusnahan
 
@@ -1184,7 +1381,7 @@ Perilaku:
 - Jika `retention_status=destroyed`, file fisik arsip di disk `public` dihapus dan row `archive_files` ikut dihapus.
 - Jika `retention_status=active`, `retention_due_date` boleh diperbarui dari payload.
 
-## 16. Dashboard Teachers Without Archives
+## 17. Dashboard Teachers Without Archives
 
 ```http
 GET /api/v1/dashboard/teachers-without-archives
@@ -1246,7 +1443,7 @@ Contoh bentuk item:
 }
 ```
 
-## 18. Archive Storage Rules
+## 19. Archive Storage Rules
 
 Semua endpoint `archive-storage-rules` memakai middleware `auth:sanctum` dan `admin`.
 
@@ -1330,7 +1527,7 @@ Perilaku:
 
 - Response hanya mengembalikan `status` dan `message`.
 
-## 19. User Notes
+## 20. User Notes
 
 ### List user
 

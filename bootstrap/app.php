@@ -11,6 +11,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -24,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
+        $middleware->append(EnsureFrontendRequestsAreStateful::class);
 
         $middleware->alias([
             'admin' => Admin::class,
@@ -79,14 +81,14 @@ return Application::configure(basePath: dirname(__DIR__))
             ], 429);
         });
 
-        // $exceptions->respond(function (Response $response) {
-        //     if ($response->getStatusCode() >= 500) {
-        //         return response()->json([
-        //             'status' => 'error',
-        //             'message' => 'Terjadi kesalahan pada server',
-        //         ], 500);
-        //     }
+        $exceptions->respond(function (Response $response) {
+            if ($response->getStatusCode() >= 500) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Terjadi kesalahan pada server',
+                ], 500);
+            }
 
-        //     return $response;
-        // });
+            return $response;
+        });
     })->create();
