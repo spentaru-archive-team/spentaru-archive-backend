@@ -68,7 +68,7 @@ Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
 - RBAC aktif:
   - `admin` bisa CRUD master data, user, dan archive storage rule.
   - `guru` bisa read master data, full CRUD archive, akses dashboard, dan update profil sendiri.
-- Upload file archive memakai `multipart/form-data`, file fisik ke disk `public`, metadata ke tabel `archive_files`.
+- Upload file archive memakai `multipart/form-data`, file fisik ke disk `local` private, metadata ke tabel `archive_files`.
 - Endpoint list `users`, `archives`, `events`, dan `archives/physical-locations` sudah memakai query `q` untuk search berbasis Laravel Scout.
 - Endpoint list `archives`, `events`, dan `archives/physical-locations` juga mendukung filter dan sort dinamis via query string.
 - Default konfigurasi Scout saat ini memakai driver `database` dari `config/scout.php`.

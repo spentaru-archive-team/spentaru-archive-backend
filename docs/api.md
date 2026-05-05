@@ -255,7 +255,6 @@ Contoh response sukses:
           "file_name": "merdeka.pdf",
           "file_type": "pdf",
           "file_size": 102400,
-          "file_url": "/storage/uploads/merdeka.pdf",
           "created_at": "2026-05-03T03:10:00.000000Z",
           "updated_at": "2026-05-03T03:10:00.000000Z"
         },
@@ -540,7 +539,7 @@ Catatan:
 - `event.{id,title,user_id,description,date,status,created_at,updated_at}`
 - `category.{id,name,has_subcategory,description,created_at,updated_at}`
 - `subcategory.{id,category_id,name,created_at,updated_at}`
-- `files.{id,archive_id,file_name,file_size,file_type,file_url,created_at,updated_at}`
+- `files.{id,archive_id,file_name,file_size,file_type,created_at,updated_at}`
 - `physicalLocation.{id,archive_id,cabinet_id,rack_id,slot_number,label_code,notes,created_at,updated_at}`
 - `ocrText.{id,archive_id,extracted_text,created_at,updated_at}`
 - `uploader.{id,name,subject,position,username,password,role,last_login_at,created_at,updated_at}`
@@ -658,11 +657,12 @@ Body `multipart/form-data`:
 
 Perilaku:
 
-- File disimpan ke disk `public` pada path `uploads/<slug>.<ext>`.
+- File disimpan ke disk `local` pada path internal `uploads/<slug>.<ext>`.
 - MIME type file divalidasi server-side: hanya `application/pdf`, `application/msword`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`, `application/vnd.ms-excel`, `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` yang diterima.
 - `retention_due_date` otomatis diisi ke awal tahun arsip + 10 tahun.
 - `retention_status` awal adalah `active`.
 - Jika category sudah punya subcategory, maka `subcategory_id` wajib diisi.
+- Jika `subcategory_id` dikirim, subkategori harus berada di bawah `category_id` yang sama.
 - Sistem mencoba auto-assign lokasi fisik melalui `ArchiveStorageService`.
 
 ## 7. Preview & Download Archive
@@ -671,7 +671,7 @@ Perilaku:
 
 ### Arsitektur Akses File
 
-File fisik tetap disimpan di `storage/app/public/uploads/` dan tersedia via symlink `public/storage/uploads/`. Namun, **akses HTTP langsung ke path ini harus diblokir di web server production** (Nginx/Apache). Satu-satunya cara resmi mengakses file adalah melalui endpoint authenticated yang melakukan validasi session.
+File fisik disimpan di `storage/app/private/uploads/` melalui disk `local`, dan tidak diekspos sebagai URL publik. Satu-satunya cara resmi mengakses file adalah melalui endpoint authenticated yang melakukan validasi session.
 
 **Perbandingan sistem lama vs baru:**
 
@@ -696,7 +696,7 @@ GET /api/v1/archives/{id}/preview
 
 - Endpoint mencari archive berdasarkan `{id}` dan memuat relasi `files`
 - Jika archive tidak ditemukan, Laravel mengembalikan `404`
-- Jika archive tidak punya file (`file_url` kosong), endpoint mengembalikan `404` dengan message `File tidak ditemukan`
+- Jika archive tidak punya metadata file atau file fisiknya tidak ada, endpoint mengembalikan `404` dengan message `File tidak ditemukan`
 - Response berupa file inline (`Content-Disposition: inline`) sehingga browser menampilkan file di tab/iframe
 - Content-Type otomatis sesuai tipe file tersimpan (`application/pdf`, `application/msword`, dll.)
 - Cocok untuk `<iframe>`, `<embed>`, atau PDF viewer di frontend
@@ -764,7 +764,7 @@ GET /api/v1/archives/{id}/download
 
 - Endpoint mencari archive berdasarkan `{id}` dan memuat relasi `files`
 - Jika archive tidak ditemukan, Laravel mengembalikan `404`
-- Jika archive tidak punya file (`file_url` kosong), endpoint mengembalikan `404` dengan message `File tidak ditemukan`
+- Jika archive tidak punya metadata file atau file fisiknya tidak ada, endpoint mengembalikan `404` dengan message `File tidak ditemukan`
 - Response berupa attachment (`Content-Disposition: attachment`) sehingga browser langsung mendownload file
 - Nama file sesuai `file_name` yang tersimpan di database (format: `{original}_{random}_{timestamp}.{ext}`)
 
@@ -832,28 +832,9 @@ async function download(archiveId: number, customName: string) {
 | `404` | Archive ada tapi tanpa file | `{"status": "error", "message": "File tidak ditemukan"}` |
 | `429` | Melebihi rate limit | `{"status": "error", "message": "Terlalu banyak request"}` |
 
-### Konfigurasi Web Server Production
-
-Blokir akses langsung ke `public/storage/uploads/`:
-
-**Nginx:**
-
-```nginx
-location /storage/uploads/ {
-    deny all;
-    return 403;
-}
-```
-
-**Apache (`public/storage/uploads/.htaccess`):**
-
-```apache
-Deny from all
-```
-
 ### Catatan Keamanan
 
-1. **Jangan gunakan `file_url` dari API secara langsung** — Field `archive.files.file_url` masih berisi path `/storage/uploads/...`. Frontend tidak boleh mengakses URL ini. Gunakan `/preview` dan `/download` sebagai gantinya.
+1. **API tidak mengirim `file_url`** — Frontend harus memakai endpoint `/preview` dan `/download` untuk akses file.
 2. **Filename di-obfuscate** — Format `{original}_{random10}_{timestamp}.{ext}` untuk mencegah guessing attack.
 3. **MIME type divalidasi server-side** — Upload file divalidasi dengan `mimetypes:` di controller, bukan hanya ekstensi.
 
@@ -1378,7 +1359,7 @@ Perilaku:
 
 - `retention_decided_at` diisi `now()`.
 - `retention_decided_by` diisi user login.
-- Jika `retention_status=destroyed`, file fisik arsip di disk `public` dihapus dan row `archive_files` ikut dihapus.
+- Jika `retention_status=destroyed`, file fisik arsip di disk `local`, row `archive_files`, dan lokasi fisik arsip ikut dihapus; `used_capacity` rak terkait dikurangi.
 - Jika `retention_status=active`, `retention_due_date` boleh diperbarui dari payload.
 
 ## 17. Dashboard Teachers Without Archives

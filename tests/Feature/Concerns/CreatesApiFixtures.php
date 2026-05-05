@@ -66,7 +66,6 @@ trait CreatesApiFixtures
             'event_id' => $dependencies['event']->id,
             'category_id' => $dependencies['category']->id,
             'subcategory_id' => $dependencies['subcategory']->id,
-            'status' => 'uploaded',
         ], $attributes));
     }
 }

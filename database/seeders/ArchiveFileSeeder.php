@@ -29,7 +29,6 @@ class ArchiveFileSeeder extends Seeder
                     'file_name' => $baseName.'.'.$extension,
                     'file_size' => 125000 + (($index + 1) * 1731),
                     'file_type' => $extension,
-                    'file_url' => '/storage/uploads/'.$baseName.'.'.$extension,
                 ]
             );
         }

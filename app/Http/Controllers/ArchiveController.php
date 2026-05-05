@@ -6,10 +6,13 @@ use App\Http\Requests\DecideRetentionRequest;
 use App\Http\Requests\StoreArchiveRequest;
 use App\Http\Requests\UpdateArchiveRequest;
 use App\Models\Archive;
+use App\Models\ArchiveFile;
 use App\Models\Subcategory;
 use App\Services\ArchiveStorageService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -19,7 +22,79 @@ use Illuminate\Support\Str as SupportStr;
 
 class ArchiveController extends Controller
 {
+    private const ARCHIVE_FILE_DISK = 'local';
+
+    private const ARCHIVE_FILE_DIRECTORY = 'uploads';
+
     public function __construct(private ArchiveStorageService $storageService) {}
+
+    private function makeArchiveFilename(UploadedFile $file): string
+    {
+        $timestamp = now()->format('YmdHisv');
+        $random = Str::random(10);
+
+        return str(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME).' '.$random.' '.$timestamp)
+            ->slug('_')
+            .'.'.strtolower($file->getClientOriginalExtension());
+    }
+
+    private function archiveFilePath(?ArchiveFile $file): ?string
+    {
+        if (! $file?->file_name) {
+            return null;
+        }
+
+        return self::ARCHIVE_FILE_DIRECTORY.'/'.basename($file->file_name);
+    }
+
+    private function storeArchiveFile(UploadedFile $file, string $filename): string
+    {
+        return $file->storeAs(self::ARCHIVE_FILE_DIRECTORY, $filename, self::ARCHIVE_FILE_DISK);
+    }
+
+    private function deleteArchiveFile(?ArchiveFile $file): void
+    {
+        $path = $this->archiveFilePath($file);
+
+        if ($path) {
+            Storage::disk(self::ARCHIVE_FILE_DISK)->delete($path);
+        }
+    }
+
+    private function requireArchiveFilePath(?ArchiveFile $file): string
+    {
+        $path = $this->archiveFilePath($file);
+
+        if (! $path || ! Storage::disk(self::ARCHIVE_FILE_DISK)->exists($path)) {
+            abort(response()->json([
+                'status' => 'error',
+                'message' => 'File tidak ditemukan',
+            ], 404));
+        }
+
+        return $path;
+    }
+
+    private function validateSubcategorySelection(int $categoryId, ?int $subcategoryId): ?JsonResponse
+    {
+        $categoryHasSubcategories = Subcategory::where('category_id', $categoryId)->exists();
+
+        if ($categoryHasSubcategories && $subcategoryId === null) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Subkategori wajib diisi karena kategori sudah mempunyai sub kategori',
+            ], 422);
+        }
+
+        if ($subcategoryId !== null && ! Subcategory::whereKey($subcategoryId)->where('category_id', $categoryId)->exists()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Subkategori tidak sesuai dengan kategori',
+            ], 422);
+        }
+
+        return null;
+    }
 
     private function hasSameValue(mixed $current, mixed $incoming): bool
     {
@@ -32,15 +107,6 @@ class ArchiveController extends Controller
         }
 
         return $current === $incoming;
-    }
-
-    private function storagePathFromUrl(?string $fileUrl): ?string
-    {
-        if (! $fileUrl) {
-            return null;
-        }
-
-        return Str::startsWith($fileUrl, '/storage/') ? Str::after($fileUrl, '/storage/') : ltrim($fileUrl, '/');
     }
 
     private function normalizedSorts(Request $request): array
@@ -210,71 +276,57 @@ class ArchiveController extends Controller
      */
     public function store(StoreArchiveRequest $request)
     {
-        $allowed_mimes = ["application/pdf","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document","application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"];
-        if (!in_array($request->file('file')->getMimeType(), $allowed_mimes, true)) {
+        $allowed_mimes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'image/jpeg', 'image/png'];
+        if (! in_array($request->file('file')->getMimeType(), $allowed_mimes, true)) {
             return response()->json([
-                ['status' => 'error', 'message' => 'Tipe file tidak diizinkan']
+                'status' => 'error',
+                'message' => 'Tipe file tidak diizinkan',
             ], 422);
         }
 
-
-
-
-        $jumlah_subcategory = Subcategory::where('category_id', $request->category_id)->count();
-        if ($jumlah_subcategory > 0) {
-            if ($request->subcategory_id == null) {
-                return response()->json(
-                    [
-                        'status' => 'error',
-                        'message' => 'Subkategori wajib diisi karena kategori sudah mempunyai sub kategori',
-                    ],
-                    422,
-                );
-            }
+        $subcategoryId = $request->filled('subcategory_id') ? (int) $request->subcategory_id : null;
+        if ($response = $this->validateSubcategorySelection((int) $request->category_id, $subcategoryId)) {
+            return $response;
         }
 
         $req_archive = $request->safe()->except(['file']);
         $file = $request->file('file');
-        $timestamp = now()->format('YmdHisv');
-        $random = Str::random(10);
-        $filename = str(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME).' '.$random.' '.$timestamp)->slug('_').'.'.strtolower($file->getClientOriginalExtension());
-        $path = $file->storeAs('uploads', $filename, 'public');
+        $filename = $this->makeArchiveFilename($file);
+        $storedPath = $this->storeArchiveFile($file, $filename);
 
         $year = intval($req_archive['year']);
 
-        // OCR
-        $aiBaseUrl = rtrim((string) config('services.ai_gateway.base_url', 'https://localhost:5000'), '/');
-        $aiTimeout = (int) config('services.ai_gateway.timeout', 15);
-
-        $response = Http::timeout($aiTimeout)->attach(
-            'file',
-            file_get_contents($file->getRealPath()),
-            $file->getClientOriginalName()
-        )->post("{$aiBaseUrl}/api/extract/text");
-        // Ambil response jadi variable
-        $ocr_result = $response->json();
-        $ocr = $ocr_result['data']['text'];
-        // OCR end
-
-        $payload = $req_archive + [
-            'status' => 'uploaded',
-            'uploader' => str(Auth::user()->id),
-            'retention_due_date' => $year ? now()->setYear($year)->startOfYear()->addYears(10)->toDateString() : null,
-            'retention_status' => 'active',
-        ];
-
-        $payload_ocr = [
-            'extracted_text' => $ocr,
-        ];
-
-        $payload_archive = [
-            'file_name' => $filename,
-            'file_size' => $file->getSize(),
-            'file_type' => strtolower($file->getClientOriginalExtension()),
-            'file_url' => '/storage/'.$path,
-        ];
-
         try {
+            // OCR
+            $aiBaseUrl = rtrim((string) config('services.ai_gateway.base_url', 'https://localhost:5000'), '/');
+            $aiTimeout = (int) config('services.ai_gateway.timeout', 15);
+
+            $response = Http::timeout($aiTimeout)->attach(
+                'file',
+                file_get_contents($file->getRealPath()),
+                $file->getClientOriginalName()
+            )->post("{$aiBaseUrl}/api/extract/text");
+            // Ambil response jadi variable
+            $ocr_result = $response->json();
+            $ocr = $ocr_result['data']['text'];
+            // OCR end
+
+            $payload = array_merge($req_archive, [
+                'uploader' => Auth::id(),
+                'retention_due_date' => $year ? now()->setYear($year)->startOfYear()->addYears(10)->toDateString() : null,
+                'retention_status' => 'active',
+            ]);
+
+            $payload_ocr = [
+                'extracted_text' => $ocr,
+            ];
+
+            $payload_archive = [
+                'file_name' => $filename,
+                'file_size' => $file->getSize(),
+                'file_type' => strtolower($file->getClientOriginalExtension()),
+            ];
+
             $archive = DB::transaction(function () use ($req_archive, $payload, $payload_ocr, $payload_archive) {
                 $archive = Archive::create($payload);
 
@@ -287,7 +339,7 @@ class ArchiveController extends Controller
                 return $archive->load(['files', 'physicalLocation.cabinet', 'physicalLocation.rack']);
             });
         } catch (\Throwable $th) {
-            Storage::disk('public')->delete($path);
+            Storage::disk(self::ARCHIVE_FILE_DISK)->delete($storedPath);
 
             throw $th;
         }
@@ -323,6 +375,7 @@ class ArchiveController extends Controller
     {
         $archive = Archive::with(['files', 'physicalLocation.rack'])->findOrFail($id);
         $validated = $request->safe()->all();
+        $oldFile = $archive->files;
 
         $archiveInput = collect($validated)
             ->except(['file'])
@@ -330,6 +383,19 @@ class ArchiveController extends Controller
         $archiveData = [];
         $categoryChanged = false;
         $subcategoryChanged = false;
+
+        if (array_key_exists('category_id', $archiveInput) || array_key_exists('subcategory_id', $archiveInput)) {
+            $categoryId = array_key_exists('category_id', $archiveInput)
+                ? (int) $archiveInput['category_id']
+                : (int) $archive->category_id;
+            $subcategoryId = array_key_exists('subcategory_id', $archiveInput)
+                ? ($archiveInput['subcategory_id'] === null ? null : (int) $archiveInput['subcategory_id'])
+                : ($archive->subcategory_id === null ? null : (int) $archive->subcategory_id);
+
+            if ($response = $this->validateSubcategorySelection($categoryId, $subcategoryId)) {
+                return $response;
+            }
+        }
 
         foreach ($archiveInput as $key => $value) {
             if (! $this->hasSameValue($archive->{$key}, $value)) {
@@ -346,80 +412,71 @@ class ArchiveController extends Controller
         $needsRelocation = $categoryChanged || $subcategoryChanged;
         $oldRack = $archive->physicalLocation?->rack;
 
-        $path = null;
+        $storedPath = null;
         $filename = null;
         $file = null;
-        $previousPaths = collect([$archive->files])
-            ->filter()
-            ->pluck('file_url')
-            ->map(fn (?string $fileUrl) => $this->storagePathFromUrl($fileUrl))
-            ->filter()
-            ->values()
-            ->all();
-
-        if ($request->hasFile('file')) {
-            $file = $request->file('file');
-            $timestamp = now()->format('YmdHisv');
-            $random = Str::random(10);
-            $filename = str(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME).' '.$random.' '.$timestamp)->slug('_').'.'.strtolower($file->getClientOriginalExtension());
-            $storedPath = $file->storeAs('uploads', $filename, 'public');
-            $path = '/storage/'.$storedPath;
-
-            // OCR
-            $aiBaseUrl = rtrim((string) config('services.ai_gateway.base_url', 'https://localhost:5000'), '/');
-            $aiTimeout = (int) config('services.ai_gateway.timeout', 15);
-
-            $response = Http::timeout($aiTimeout)->attach(
-                'file',
-                file_get_contents($file->getRealPath()),
-                $file->getClientOriginalName()
-            )->post("{$aiBaseUrl}/api/extract/text");
-            // Ambil response jadi variable
-            $ocr_result = $response->json();
-            $ocr = $ocr_result['data']['text'];
-            $ocr_payload = ['extracted_text' => $ocr];
-            // OCR end
-
-            if (! $this->hasSameValue($archive->status, 'uploaded')) {
-                $archiveData['status'] = 'uploaded';
-            }
-        }
+        $ocr_payload = null;
 
         try {
-            DB::transaction(function () use ($archive, $archiveData, $file, $filename, $path, $needsRelocation, $oldRack, $ocr_payload) {
+            if ($request->hasFile('file')) {
+                $file = $request->file('file');
+                $filename = $this->makeArchiveFilename($file);
+                $storedPath = $this->storeArchiveFile($file, $filename);
+
+                // OCR
+                $aiBaseUrl = rtrim((string) config('services.ai_gateway.base_url', 'https://localhost:5000'), '/');
+                $aiTimeout = (int) config('services.ai_gateway.timeout', 15);
+
+                $response = Http::timeout($aiTimeout)->attach(
+                    'file',
+                    file_get_contents($file->getRealPath()),
+                    $file->getClientOriginalName()
+                )->post("{$aiBaseUrl}/api/extract/text");
+                // Ambil response jadi variable
+                $ocr_result = $response->json();
+                $ocr = $ocr_result['data']['text'];
+                $ocr_payload = ['extracted_text' => $ocr];
+                // OCR end
+            }
+
+            DB::transaction(function () use ($archive, $archiveData, $file, $filename, $needsRelocation, $oldRack, $ocr_payload) {
                 if ($archiveData !== []) {
                     $archive->update($archiveData);
                 }
 
-                if ($file && $filename && $path) {
+                if ($file && $filename) {
                     $archive->files()->delete();
                     $archive->files()->create([
                         'file_name' => $filename,
                         'file_size' => $file->getSize(),
                         'file_type' => strtolower($file->getClientOriginalExtension()),
-                        'file_url' => $path,
                     ]);
-                    $archive->ocrText()->update($ocr_payload);
+                    $archive->ocrText()->updateOrCreate(
+                        ['archive_id' => $archive->id],
+                        $ocr_payload
+                    );
                 }
 
-                if ($needsRelocation && $archive->physicalLocation) {
-                    $archive->physicalLocation->delete();
-                    if ($oldRack) {
-                        $oldRack->decrement('used_capacity');
+                if ($needsRelocation) {
+                    if ($archive->physicalLocation) {
+                        $archive->physicalLocation->delete();
+                        if ($oldRack) {
+                            $oldRack->decrement('used_capacity');
+                        }
                     }
                     $this->storageService->assignLocation($archive, $archive->category_id, $archive->subcategory_id);
                 }
             });
         } catch (\Throwable $th) {
-            if ($path) {
-                Storage::disk('public')->delete($this->storagePathFromUrl($path));
+            if ($storedPath) {
+                Storage::disk(self::ARCHIVE_FILE_DISK)->delete($storedPath);
             }
 
             throw $th;
         }
 
-        if ($file && $previousPaths !== []) {
-            Storage::disk('public')->delete($previousPaths);
+        if ($file) {
+            $this->deleteArchiveFile($oldFile);
         }
 
         return response()->json([
@@ -435,13 +492,7 @@ class ArchiveController extends Controller
     public function destroy(string $id)
     {
         $archive = Archive::with(['files', 'physicalLocation.rack'])->findOrFail($id);
-        $filePaths = collect([$archive->files])
-            ->filter()
-            ->pluck('file_url')
-            ->map(fn (?string $fileUrl) => $this->storagePathFromUrl($fileUrl))
-            ->filter()
-            ->values()
-            ->all();
+        $file = $archive->files;
 
         DB::transaction(function () use ($archive) {
             if ($archive->physicalLocation?->rack) {
@@ -450,7 +501,7 @@ class ArchiveController extends Controller
             $archive->delete();
         });
 
-        Storage::disk('public')->delete($filePaths);
+        $this->deleteArchiveFile($file);
 
         return response()->json([
             'status' => 'success',
@@ -476,23 +527,36 @@ class ArchiveController extends Controller
     {
         $archive = Archive::with(['files', 'physicalLocation.rack'])->findOrFail($id);
 
-        if ($request->retention_status === 'destroyed') {
-            if ($archive->files?->file_url) {
-                Storage::disk('public')->delete(Str::after($archive->files->file_url, '/storage/'));
-                $archive->files()->delete();
-            }
-            if ($archive->physicalLocation?->rack) {
-                $archive->physicalLocation->rack->decrement('used_capacity');
-            }
-        }
+        $fileToDelete = null;
 
-        $archive->update([
-            'retention_status' => $request->retention_status,
-            'retention_decided_at' => now(),
-            'retention_decided_by' => Auth::id(),
-            'retention_note' => $request->retention_note,
-            'retention_due_date' => $request->retention_status === 'active' || $request->retention_status == 'retained' ? $request->retention_due_date : $archive->retention_due_date,
-        ]);
+        DB::transaction(function () use ($archive, $request, &$fileToDelete) {
+            if ($request->retention_status === 'destroyed') {
+                $fileToDelete = $archive->files;
+
+                if ($archive->files) {
+                    $archive->files()->delete();
+                }
+
+                if ($archive->physicalLocation) {
+                    if ($archive->physicalLocation->rack) {
+                        $archive->physicalLocation->rack->decrement('used_capacity');
+                    }
+                    $archive->physicalLocation->delete();
+                }
+            }
+
+            $archive->update([
+                'retention_status' => $request->retention_status,
+                'retention_decided_at' => now(),
+                'retention_decided_by' => Auth::id(),
+                'retention_note' => $request->retention_note,
+                'retention_due_date' => $request->retention_status === 'active' || $request->retention_status == 'retained' ? $request->retention_due_date : $archive->retention_due_date,
+            ]);
+        });
+
+        if ($request->retention_status === 'destroyed') {
+            $this->deleteArchiveFile($fileToDelete);
+        }
 
         return response()->json([
             'status' => 'success',
@@ -505,25 +569,17 @@ class ArchiveController extends Controller
     {
         $archive = Archive::with('files')->findOrFail($id);
 
-        if (! $archive->files?->file_url) {
-            abort(404, 'File tidak ditemukan');
-        }
+        $storagePath = $this->requireArchiveFilePath($archive->files);
 
-        $storagePath = Str::after($archive->files->file_url, '/storage/');
-
-        return Storage::disk('public')->response($storagePath, $archive->files->file_name);
+        return Storage::disk(self::ARCHIVE_FILE_DISK)->response($storagePath, $archive->files->file_name);
     }
 
     public function download(string $id)
     {
         $archive = Archive::with('files')->findOrFail($id);
 
-        if (! $archive->files?->file_url) {
-            abort(404, 'File tidak ditemukan');
-        }
+        $storagePath = $this->requireArchiveFilePath($archive->files);
 
-        $storagePath = Str::after($archive->files->file_url, '/storage/');
-
-        return Storage::disk('public')->download($storagePath, $archive->files->file_name);
+        return Storage::disk(self::ARCHIVE_FILE_DISK)->download($storagePath, $archive->files->file_name);
     }
 }

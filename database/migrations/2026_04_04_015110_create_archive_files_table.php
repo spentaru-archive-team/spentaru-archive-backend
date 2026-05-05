@@ -14,7 +14,6 @@ return new class extends Migration
             $table->string('file_name');
             $table->unsignedBigInteger('file_size');
             $table->string('file_type', 20)->nullable();
-            $table->string('file_url');
             $table->timestamps();
 
             $table->index('archive_id');

@@ -57,7 +57,6 @@ class ArchiveApiTest extends TestCase
             'event_id' => $attributes['event_id'] ?? $event->id,
             'category_id' => $attributes['category_id'] ?? $category->id,
             'subcategory_id' => array_key_exists('subcategory_id', $attributes) ? $attributes['subcategory_id'] : $subcategory->id,
-            'status' => $attributes['status'] ?? 'uploaded',
             'uploader' => $attributes['uploader'] ?? $uploader->id,
             'retention_due_date' => $attributes['retention_due_date'] ?? '2036-01-01',
             'retention_status' => $attributes['retention_status'] ?? 'active',

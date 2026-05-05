@@ -97,7 +97,6 @@ class AiGatewayApiTest extends TestCase
             'file_name' => 'merdeka.pdf',
             'file_size' => 102400,
             'file_type' => 'pdf',
-            'file_url' => '/storage/uploads/merdeka.pdf',
         ]);
 
         $archive->physicalLocation()->create([
