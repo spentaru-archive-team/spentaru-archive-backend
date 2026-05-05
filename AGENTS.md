@@ -89,7 +89,10 @@ Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
 - File arsip bisa diakses via endpoint terautentikasi `GET /api/v1/archives/{id}/preview` dan `GET /api/v1/archives/{id}/download`.
 - Search query archive sudah escape karakter wildcard SQL (`%`, `_`, `\`) untuk mencegah abuse.
 - Perubahan role user di-log dan hanya bisa dilakukan oleh admin (bukan self-update).
-- Komunikasi AI service OCR memakai konfigurasi HTTPS via `config/services.ai_gateway`.
+- Komunikasi AI service OCR memakai konfigurasi HTTP via `config/services.ai_gateway` (default `http://localhost:5000` untuk development, production wajib set env `AI_SERVICE_BASE_URL` ke HTTPS).
+- Delete archive dan retention status `destroyed` menghapus vector dari Qdrant via AI service endpoint `DELETE /api/vector/{vector_id}`.
+- Archive `archive_files` menyimpan `vector_id` dan `extraction_status` untuk tracking vector di Qdrant.
+- AI search endpoint `/ai/tools/archives/search` memakai hybrid search: keyword (MySQL LIKE) + vector (Qdrant via AI service) dengan bobot 60% vector, 40% keyword, bonus 1.2x jika muncul di kedua sumber.
 - Middleware `EnsureFrontendRequestsAreStateful` ditambahkan eksplisit untuk CSRF protection.
 - CORS di-restrict ke origins, methods, dan headers eksplisit; wildcard dihapus.
 - Default `.env.example`: `APP_DEBUG=false`, `LOG_LEVEL=warning`, `SESSION_SECURE_COOKIE=true`, `SESSION_EXPIRE_ON_CLOSE=true`.
@@ -138,6 +141,7 @@ app/Http/Controllers/AuthController.php
 app/Http/Controllers/ArchiveController.php
   CRUD archive + upload/update file archive
   auto-assign physical location via ArchiveStorageService
+  delete vector from Qdrant saat destroy/retention destroyed
 
 app/Http/Controllers/ArchivePhysicalLocationController.php
   list/show/create/update/delete physical location archive

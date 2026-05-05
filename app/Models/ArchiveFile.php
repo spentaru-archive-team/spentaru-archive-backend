@@ -15,6 +15,8 @@ class ArchiveFile extends Model
         'file_name',
         'file_size',
         'file_type',
+        'vector_id',
+        'extraction_status',
     ];
 
     protected function casts(): array

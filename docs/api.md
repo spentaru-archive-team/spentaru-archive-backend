@@ -173,6 +173,7 @@ Perilaku search:
 - Kandidat arsip dicari dari `archives.title`, `archives.notes`, `archives.year`, `ocr_texts.extracted_text`, `events.title`, `archive_categories.name`, `subcategories.name`, `archive_physical_locations.label_code`, `archive_physical_locations.notes`, `archive_physical_locations.slot_number`, `cabinets.name`, `cabinets.cabinet_number`, dan `racks.rack_number`.
 - Hasil diberi `match_score` berbobot per field, lalu diurutkan dari yang paling relevan.
 - Response memuat token hasil resolve, alasan match per field, file, excerpt OCR, dan lokasi fisik lengkap.
+- **Hybrid search**: jika AI service vector search tersedia, hasil keyword digabung dengan vector search dari Qdrant (bobot 60% vector, 40% keyword, bonus 1.2x jika muncul di kedua sumber). Jika vector search gagal, fallback ke keyword-only.
 
 Contoh response sukses:
 
@@ -200,6 +201,8 @@ Contoh response sukses:
         "year": "2025",
         "notes": "Dokumentasi kegiatan upacara",
         "match_score": 172,
+        "hybrid_score": 0.85,
+        "sources": ["keyword", "vector"],
         "match_reasons": [
           {
             "field": "judul arsip",

@@ -19,6 +19,7 @@ class OcrTextSeeder extends Seeder
             $archive->ocrText()->updateOrCreate(
                 ['archive_id' => $archive->id],
                 [
+                    'vector_id' => fake()->uuid(),
                     'extracted_text' => sprintf(
                         'Hasil OCR simulasi untuk arsip "%s" tahun %s dengan tipe file %s.',
                         $archive->title,

@@ -16,6 +16,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Support\Str as SupportStr;
@@ -73,6 +74,25 @@ class ArchiveController extends Controller
         }
 
         return $path;
+    }
+
+    private function deleteVectorFromQdrant(?string $vectorId): void
+    {
+        if (! $vectorId) {
+            return;
+        }
+
+        $aiBaseUrl = rtrim((string) config('services.ai_gateway.base_url', 'http://localhost:5000'), '/');
+        $aiTimeout = (int) config('services.ai_gateway.timeout', 15);
+
+        try {
+            Http::timeout($aiTimeout)->delete("{$aiBaseUrl}/api/vector/{$vectorId}");
+        } catch (\Exception $e) {
+            Log::warning('Failed to delete vector from Qdrant', [
+                'vector_id' => $vectorId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function validateSubcategorySelection(int $categoryId, ?int $subcategoryId): ?JsonResponse
@@ -298,7 +318,7 @@ class ArchiveController extends Controller
 
         try {
             // OCR
-            $aiBaseUrl = rtrim((string) config('services.ai_gateway.base_url', 'https://localhost:5000'), '/');
+            $aiBaseUrl = rtrim((string) config('services.ai_gateway.base_url', 'http://localhost:5000'), '/');
             $aiTimeout = (int) config('services.ai_gateway.timeout', 15);
 
             $response = Http::timeout($aiTimeout)->attach(
@@ -309,6 +329,7 @@ class ArchiveController extends Controller
             // Ambil response jadi variable
             $ocr_result = $response->json();
             $ocr = $ocr_result['data']['text'];
+            $vector_id = $ocr_result['data']['vector_id'];
             // OCR end
 
             $payload = array_merge($req_archive, [
@@ -325,6 +346,8 @@ class ArchiveController extends Controller
                 'file_name' => $filename,
                 'file_size' => $file->getSize(),
                 'file_type' => strtolower($file->getClientOriginalExtension()),
+                'vector_id' => $vector_id,
+                'extraction_status' => 'done',
             ];
 
             $archive = DB::transaction(function () use ($req_archive, $payload, $payload_ocr, $payload_archive) {
@@ -424,7 +447,7 @@ class ArchiveController extends Controller
                 $storedPath = $this->storeArchiveFile($file, $filename);
 
                 // OCR
-                $aiBaseUrl = rtrim((string) config('services.ai_gateway.base_url', 'https://localhost:5000'), '/');
+                $aiBaseUrl = rtrim((string) config('services.ai_gateway.base_url', 'http://localhost:5000'), '/');
                 $aiTimeout = (int) config('services.ai_gateway.timeout', 15);
 
                 $response = Http::timeout($aiTimeout)->attach(
@@ -435,11 +458,13 @@ class ArchiveController extends Controller
                 // Ambil response jadi variable
                 $ocr_result = $response->json();
                 $ocr = $ocr_result['data']['text'];
+                $vector_id = $ocr_result['data']['vector_id'];
+
                 $ocr_payload = ['extracted_text' => $ocr];
                 // OCR end
             }
 
-            DB::transaction(function () use ($archive, $archiveData, $file, $filename, $needsRelocation, $oldRack, $ocr_payload) {
+            DB::transaction(function () use ($archive, $archiveData, $file, $filename, $needsRelocation, $oldRack) {
                 if ($archiveData !== []) {
                     $archive->update($archiveData);
                 }
@@ -450,10 +475,12 @@ class ArchiveController extends Controller
                         'file_name' => $filename,
                         'file_size' => $file->getSize(),
                         'file_type' => strtolower($file->getClientOriginalExtension()),
+                        'vector_id' => $vector_id,
+                        'extraction_status' => 'done',
                     ]);
                     $archive->ocrText()->updateOrCreate(
                         ['archive_id' => $archive->id],
-                        $ocr_payload
+                        ['extracted_text' => $ocr]
                     );
                 }
 
@@ -494,7 +521,9 @@ class ArchiveController extends Controller
         $archive = Archive::with(['files', 'physicalLocation.rack'])->findOrFail($id);
         $file = $archive->files;
 
-        DB::transaction(function () use ($archive) {
+        DB::transaction(function () use ($archive, $file) {
+            $this->deleteVectorFromQdrant($file?->vector_id);
+
             if ($archive->physicalLocation?->rack) {
                 $archive->physicalLocation->rack->decrement('used_capacity');
             }
@@ -532,6 +561,8 @@ class ArchiveController extends Controller
         DB::transaction(function () use ($archive, $request, &$fileToDelete) {
             if ($request->retention_status === 'destroyed') {
                 $fileToDelete = $archive->files;
+
+                $this->deleteVectorFromQdrant($fileToDelete?->vector_id);
 
                 if ($archive->files) {
                     $archive->files()->delete();

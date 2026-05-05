@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\Archive;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class AiArchiveSearchService
@@ -31,17 +33,21 @@ class AiArchiveSearchService
         'nomor slot' => 8,
     ];
 
+    private const VECTOR_WEIGHT = 0.6;
+
+    private const KEYWORD_WEIGHT = 0.4;
+
+    private const HYBRID_BONUS = 1.2;
+
     public function search(string $question, ?int $limit = null): array
     {
         $resolvedLimit = max(1, min($limit ?? self::DEFAULT_LIMIT, self::MAX_LIMIT));
         $terms = $this->extractTerms($question);
-        $candidates = $this->findCandidates($question, $terms);
 
-        $ranked = $candidates
-            ->map(fn (Archive $archive) => $this->scoreArchive($archive, $question, $terms))
-            ->filter(fn (array $result) => $result['match_score'] > 0)
-            ->sortByDesc('match_score')
-            ->values();
+        $keywordResults = $this->searchKeyword($question, $terms, $resolvedLimit);
+        $vectorResults = $this->searchVector($question, $resolvedLimit);
+
+        $ranked = $this->mergeAndRerank($keywordResults, $vectorResults, $question, $terms);
 
         $archives = $ranked->take($resolvedLimit)->all();
 
@@ -53,6 +59,107 @@ class AiArchiveSearchService
             'archives' => $archives,
             'suggested_answer' => $this->buildSuggestedAnswer($archives),
         ];
+    }
+
+    private function searchKeyword(string $question, array $terms, int $limit): Collection
+    {
+        $candidates = $this->findCandidates($question, $terms);
+
+        return $candidates
+            ->map(fn (Archive $archive) => $this->scoreArchive($archive, $question, $terms))
+            ->filter(fn (array $result) => $result['match_score'] > 0)
+            ->sortByDesc('match_score')
+            ->values()
+            ->take($limit);
+    }
+
+    private function searchVector(string $question, int $limit): Collection
+    {
+        $aiBaseUrl = rtrim((string) config('services.ai_gateway.base_url', 'http://localhost:5000'), '/');
+        $aiTimeout = (int) config('services.ai_gateway.timeout', 15);
+
+        try {
+            $response = Http::timeout($aiTimeout)->post("{$aiBaseUrl}/api/vector/search", [
+                'query' => $question,
+                'limit' => $limit,
+            ]);
+
+            if (! $response->successful()) {
+                return collect();
+            }
+
+            $data = $response->json('data.matches', $response->json('data', []));
+
+            if (! is_array($data)) {
+                return collect();
+            }
+
+            return collect($data)->map(function ($match) {
+                return [
+                    'archive_id' => $match['archive_id'] ?? $match['payload']['archive_id'] ?? null,
+                    'vector_score' => $match['score'] ?? $match['vector_score'] ?? 0,
+                ];
+            })->filter(fn ($item) => $item['archive_id'] !== null)
+                ->values();
+        } catch (\Exception $e) {
+            Log::warning('Vector search failed, falling back to keyword only', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return collect();
+        }
+    }
+
+    /**
+     * @param  array<int, string>  $terms
+     */
+    private function mergeAndRerank(Collection $keywordResults, Collection $vectorResults, string $question, array $terms): Collection
+    {
+        $vectorMap = $vectorResults->keyBy('archive_id')->map->vector_score;
+        $keywordMap = $keywordResults->keyBy('archive_id')->map->match_score;
+
+        $allArchiveIds = $keywordMap->keys()->merge($vectorMap->keys())->unique()->values();
+
+        $maxKeywordScore = $keywordMap->max() ?: 1;
+
+        return $allArchiveIds->map(function ($archiveId) use ($vectorMap, $keywordMap, $maxKeywordScore) {
+            $inVector = $vectorMap->has($archiveId);
+            $inKeyword = $keywordMap->has($archiveId);
+
+            $normalizedKeyword = $inKeyword ? ($keywordMap[$archiveId] / $maxKeywordScore) : 0;
+            $vectorScore = $inVector ? $vectorMap[$archiveId] : 0;
+
+            $hybridScore = (self::VECTOR_WEIGHT * $vectorScore) + (self::KEYWORD_WEIGHT * $normalizedKeyword);
+
+            if ($inVector && $inKeyword) {
+                $hybridScore *= self::HYBRID_BONUS;
+            }
+
+            if ($inKeyword) {
+                $keywordResult = $keywordResults->firstWhere('archive_id', $archiveId);
+                $keywordResult['hybrid_score'] = $hybridScore;
+                $keywordResult['sources'] = $inVector && $inKeyword ? ['keyword', 'vector'] : ['keyword'];
+
+                return $keywordResult;
+            }
+
+            return [
+                'archive_id' => $archiveId,
+                'title' => optional(Archive::find($archiveId))->title ?? '',
+                'year' => optional(Archive::find($archiveId))->year,
+                'notes' => optional(Archive::find($archiveId))->notes,
+                'match_score' => 0,
+                'hybrid_score' => $hybridScore,
+                'match_reasons' => [],
+                'event' => null,
+                'category' => null,
+                'subcategory' => null,
+                'physical_location' => null,
+                'file' => null,
+                'ocr_excerpt' => null,
+                'sources' => ['vector'],
+            ];
+        })->sortByDesc('hybrid_score')->values();
     }
 
     /**
