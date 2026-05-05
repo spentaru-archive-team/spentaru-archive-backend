@@ -3,7 +3,7 @@
 Base URL lokal:
 
 ```text
-https://localhost:8000/api/v1
+http://localhost:8000/api/v1
 ```
 
 ## Konvensi Umum
@@ -706,7 +706,7 @@ GET /api/v1/archives/{id}/preview
 ```bash
 curl -c cookies.txt -b cookies.txt \
   -H "X-XSRF-TOKEN: <token>" \
-  https://localhost:8000/api/v1/archives/12/preview
+  http://localhost:8000/api/v1/archives/12/preview
 ```
 
 **Contoh response headers:**
@@ -774,7 +774,7 @@ GET /api/v1/archives/{id}/download
 curl -c cookies.txt -b cookies.txt \
   -H "X-XSRF-TOKEN: <token>" \
   -O -J \
-  https://localhost:8000/api/v1/archives/12/download
+  http://localhost:8000/api/v1/archives/12/download
 ```
 
 **Contoh response headers:**
@@ -1452,7 +1452,7 @@ Body:
 | `category_id` | `integer` | Ya | `exists:archive_categories,id` |
 | `subcategory_id` | `integer` | Kondisional | `nullable`, `exists:subcategories,id`, harus milik `category_id` yang dipilih |
 | `cabinet_id` | `integer` | Ya | `exists:cabinets,id` |
-| `priority` | `integer` | Ya | unik di `archive_storage_rules` |
+| `priority` | `integer` | Ya | unik untuk kombinasi `category_id` + `subcategory_id` yang sama |
 
 Aturan `subcategory_id`:
 
@@ -1490,7 +1490,7 @@ Field yang bisa diubah:
 
 Aturan aktif:
 
-- `priority` tetap unik, dengan pengecualian untuk row yang sedang di-update.
+- `priority` tetap unik untuk kombinasi `category_id` + `subcategory_id` yang sama, dengan pengecualian untuk row yang sedang di-update.
 - Jika `category_id` dikirim, aturan `subcategory_id` mengikuti `has_subcategory` kategori tersebut.
 - Jika `subcategory_id` dikirim, nilainya harus berasal dari kategori yang sama.
 

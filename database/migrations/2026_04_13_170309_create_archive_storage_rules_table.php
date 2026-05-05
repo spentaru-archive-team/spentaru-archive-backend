@@ -13,18 +13,38 @@ return new class extends Migration
     {
         Schema::create('archive_storage_rules', function (Blueprint $table) {
             $table->id();
-            // 3 foreign key
-            $table->foreignId('category_id')->nullable()->constrained('archive_categories')->nullOnDelete();
-            $table->foreignId('subcategory_id')->nullable()->constrained('subcategories')->nullOnDelete();
-            $table->foreignId('cabinet_id')->constrained('cabinets')->cascadeOnDelete();
+
+            $table->foreignId('category_id')
+                ->nullable()
+                ->constrained('archive_categories')
+                ->nullOnDelete();
+
+            $table->foreignId('subcategory_id')
+                ->nullable()
+                ->constrained('subcategories')
+                ->nullOnDelete();
+
+            $table->foreignId('cabinet_id')
+                ->constrained('cabinets')
+                ->cascadeOnDelete();
 
             // semakin kecil angka priority semakin dibutuhkan
             $table->unsignedInteger('priority');
+
+            // Untuk kebutuhan unique ketika subcategory_id NULL
+            $table->unsignedBigInteger('subcategory_unique_key')
+                ->storedAs('COALESCE(subcategory_id, 0)');
+
             $table->timestamps();
-            $table->index(['category_id', 'subcategory_id', 'priority'], 'idx_storage_rules_category_subcategory_priority');
+
+            $table->index(
+                ['category_id', 'subcategory_id', 'priority'],
+                'idx_storage_rules_category_subcategory_priority'
+            );
+
             $table->unique(
-                ['category_id', 'subcategory_id', 'cabinet_id', 'priority'],
-                'uniq_storage_rules_category_subcategory_cabinet_priority'
+                ['category_id', 'subcategory_unique_key', 'priority'],
+                'uniq_storage_rules_category_subcategory_priority'
             );
         });
     }

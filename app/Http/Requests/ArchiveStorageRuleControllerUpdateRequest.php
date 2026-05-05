@@ -3,9 +3,12 @@
 namespace App\Http\Requests;
 
 use App\Models\ArchiveCategory;
+use App\Models\ArchiveStorageRule;
+use App\Models\Subcategory;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class ArchiveStorageRuleControllerUpdateRequest extends FormRequest
 {
@@ -25,9 +28,15 @@ class ArchiveStorageRuleControllerUpdateRequest extends FormRequest
     public function rules(): array
     {
         $ruleId = $this->route('id');
-        // sesuaikan dengan nama parameter route kamu
+        $rule = ArchiveStorageRule::find($ruleId);
 
-        $categoryId = $this->input('category_id');
+        $categoryId = $this->has('category_id')
+            ? $this->input('category_id')
+            : $rule?->category_id;
+
+        $subcategoryId = $this->has('subcategory_id')
+            ? $this->input('subcategory_id')
+            : $rule?->subcategory_id;
 
         $category = $categoryId
             ? ArchiveCategory::find($categoryId)
@@ -61,7 +70,7 @@ class ArchiveStorageRuleControllerUpdateRequest extends FormRequest
                 },
 
                 Rule::exists('subcategories', 'id')
-                    ->where('category_id', $categoryId),
+                    ->where(fn ($query) => $query->where('category_id', $categoryId)),
             ],
 
             'cabinet_id' => [
@@ -76,8 +85,87 @@ class ArchiveStorageRuleControllerUpdateRequest extends FormRequest
                 'required',
                 'integer',
                 Rule::unique('archive_storage_rules', 'priority')
+                    ->where(function ($query) use ($categoryId, $subcategoryId) {
+                        $query->where('category_id', $categoryId);
+
+                        if ($subcategoryId === null) {
+                            $query->whereNull('subcategory_id');
+                        } else {
+                            $query->where('subcategory_id', $subcategoryId);
+                        }
+                    })
                     ->ignore($ruleId),
             ],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            if ($validator->errors()->any()) {
+                return;
+            }
+
+            if (! $this->hasAny(['category_id', 'subcategory_id', 'priority'])) {
+                return;
+            }
+
+            $ruleId = $this->route('id');
+            $rule = ArchiveStorageRule::find($ruleId);
+
+            if (! $rule) {
+                return;
+            }
+
+            $categoryId = $this->has('category_id')
+                ? $this->input('category_id')
+                : $rule->category_id;
+
+            $subcategoryId = $this->has('subcategory_id')
+                ? $this->input('subcategory_id')
+                : $rule->subcategory_id;
+
+            $priority = $this->has('priority')
+                ? $this->input('priority')
+                : $rule->priority;
+
+            $category = ArchiveCategory::find($categoryId);
+
+            if ($category && $category->has_subcategory && empty($subcategoryId)) {
+                $validator->errors()->add('subcategory_id', 'Subkategori wajib diisi');
+
+                return;
+            }
+
+            if ($category && ! $category->has_subcategory && ! is_null($subcategoryId)) {
+                $validator->errors()->add('subcategory_id', 'Subkategori harus kosong untuk kategori ini, karena kategori tidak mempunyai subkategori');
+
+                return;
+            }
+
+            if (
+                ! is_null($subcategoryId)
+                && ! Subcategory::whereKey($subcategoryId)->where('category_id', $categoryId)->exists()
+            ) {
+                $validator->errors()->add('subcategory_id', 'Subkategori tidak valid untuk kategori ini');
+
+                return;
+            }
+
+            $duplicateExists = ArchiveStorageRule::query()
+                ->where('category_id', $categoryId)
+                ->when(
+                    $subcategoryId === null,
+                    fn ($query) => $query->whereNull('subcategory_id'),
+                    fn ($query) => $query->where('subcategory_id', $subcategoryId),
+                )
+                ->where('priority', $priority)
+                ->whereKeyNot($ruleId)
+                ->exists();
+
+            if ($duplicateExists) {
+                $validator->errors()->add('priority', 'Priority sudah digunakan untuk kategori dan subkategori ini');
+            }
+        });
     }
 }

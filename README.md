@@ -60,13 +60,13 @@ php artisan scout:import "App\\Models\\ArchivePhysicalLocation"
 Base URL lokal:
 
 ```text
-https://localhost:8000
+http://localhost:8000
 ```
 
 Base URL API:
 
 ```text
-https://localhost:8000/api/v1
+http://localhost:8000/api/v1
 ```
 
 ## Auth Flow
@@ -81,10 +81,10 @@ Contoh flow lengkap:
 
 ```bash
 # 1. Ambil CSRF cookie
-curl -c cookies.txt -b cookies.txt https://localhost:8000/sanctum/csrf-cookie
+curl -c cookies.txt -b cookies.txt http://localhost:8000/sanctum/csrf-cookie
 
 # 2. Login
-curl -X POST https://localhost:8000/api/v1/auth/login \
+curl -X POST http://localhost:8000/api/v1/auth/login \
   -c cookies.txt -b cookies.txt \
   -H "Content-Type: application/json" \
   -H "X-XSRF-TOKEN: $(cat cookies.txt | grep XSRF | awk '{print $NF}')" \
@@ -93,7 +93,7 @@ curl -X POST https://localhost:8000/api/v1/auth/login \
 # 3. Request terproteksi
 curl -c cookies.txt -b cookies.txt \
   -H "X-XSRF-TOKEN: $(cat cookies.txt | grep XSRF | awk '{print $NF}')" \
-  https://localhost:8000/api/v1/archives
+  http://localhost:8000/api/v1/archives
 ```
 
 ## Command Penting
@@ -147,7 +147,7 @@ GET /api/v1/archives/{id}/preview
 ```bash
 curl -c cookies.txt -b cookies.txt \
   -H "X-XSRF-TOKEN: <token>" \
-  https://localhost:8000/api/v1/archives/12/preview
+  http://localhost:8000/api/v1/archives/12/preview
 ```
 
 **Contoh response:**
@@ -250,7 +250,7 @@ GET /api/v1/archives/{id}/download
 curl -c cookies.txt -b cookies.txt \
   -H "X-XSRF-TOKEN: <token>" \
   -O -J \
-  https://localhost:8000/api/v1/archives/12/download
+  http://localhost:8000/api/v1/archives/12/download
 ```
 
 Flag `-O` menyimpan file dengan nama dari server, `-J` menggunakan nama file dari header `Content-Disposition`.
