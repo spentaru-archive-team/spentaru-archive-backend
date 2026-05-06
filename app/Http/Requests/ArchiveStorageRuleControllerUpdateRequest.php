@@ -70,7 +70,7 @@ class ArchiveStorageRuleControllerUpdateRequest extends FormRequest
                 },
 
                 Rule::exists('subcategories', 'id')
-                    ->where(fn ($query) => $query->where('category_id', $categoryId)),
+                    ->where(fn($query) => $query->where('category_id', $categoryId)),
             ],
 
             'cabinet_id' => [
@@ -87,12 +87,7 @@ class ArchiveStorageRuleControllerUpdateRequest extends FormRequest
                 Rule::unique('archive_storage_rules', 'priority')
                     ->where(function ($query) use ($categoryId, $subcategoryId) {
                         $query->where('category_id', $categoryId);
-
-                        if ($subcategoryId === null) {
-                            $query->whereNull('subcategory_id');
-                        } else {
-                            $query->where('subcategory_id', $subcategoryId);
-                        }
+                        $query->where('subcategory_unique_key', $subcategoryId ?? 0);
                     })
                     ->ignore($ruleId),
             ],
@@ -124,6 +119,7 @@ class ArchiveStorageRuleControllerUpdateRequest extends FormRequest
             $subcategoryId = $this->has('subcategory_id')
                 ? $this->input('subcategory_id')
                 : $rule->subcategory_id;
+            $subcategoryUniqueKey = $subcategoryId ?? 0;
 
             $priority = $this->has('priority')
                 ? $this->input('priority')
@@ -154,11 +150,7 @@ class ArchiveStorageRuleControllerUpdateRequest extends FormRequest
 
             $duplicateExists = ArchiveStorageRule::query()
                 ->where('category_id', $categoryId)
-                ->when(
-                    $subcategoryId === null,
-                    fn ($query) => $query->whereNull('subcategory_id'),
-                    fn ($query) => $query->where('subcategory_id', $subcategoryId),
-                )
+                ->where('subcategory_unique_key', $subcategoryUniqueKey)
                 ->where('priority', $priority)
                 ->whereKeyNot($ruleId)
                 ->exists();

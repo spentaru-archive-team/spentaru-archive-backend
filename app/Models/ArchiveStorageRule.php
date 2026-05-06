@@ -15,14 +15,23 @@ class ArchiveStorageRule extends Model
         'subcategory_id',
         'cabinet_id',
         'priority',
+        'subcategory_unique_key',
     ];
 
     protected function casts(): array
     {
         return [
+            'subcategory_unique_key' => 'integer',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $model): void {
+            $model->subcategory_unique_key = $model->subcategory_id ?? 0;
+        });
     }
 
     public function category(): BelongsTo

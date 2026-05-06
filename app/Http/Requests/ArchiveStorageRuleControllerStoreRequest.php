@@ -56,12 +56,7 @@ class ArchiveStorageRuleControllerStoreRequest extends FormRequest
                 Rule::unique('archive_storage_rules', 'priority')
                     ->where(function ($query) use ($categoryId, $subcategoryId) {
                         $query->where('category_id', $categoryId);
-
-                        if ($subcategoryId === null) {
-                            $query->whereNull('subcategory_id');
-                        } else {
-                            $query->where('subcategory_id', $subcategoryId);
-                        }
+                        $query->where('subcategory_unique_key', $subcategoryId ?? 0);
                     }),
             ],
         ];
@@ -76,6 +71,7 @@ class ArchiveStorageRuleControllerStoreRequest extends FormRequest
 
             $categoryId = $this->input('category_id');
             $subcategoryId = $this->input('subcategory_id');
+            $subcategoryUniqueKey = $subcategoryId ?? 0;
             $priority = $this->input('priority');
             $category = ArchiveCategory::find($categoryId);
 
@@ -103,11 +99,7 @@ class ArchiveStorageRuleControllerStoreRequest extends FormRequest
 
             $priorityExists = ArchiveStorageRule::query()
                 ->where('category_id', $categoryId)
-                ->when(
-                    $subcategoryId === null,
-                    fn ($query) => $query->whereNull('subcategory_id'),
-                    fn ($query) => $query->where('subcategory_id', $subcategoryId),
-                )
+                ->where('subcategory_unique_key', $subcategoryUniqueKey)
                 ->where('priority', $priority)
                 ->exists();
 
