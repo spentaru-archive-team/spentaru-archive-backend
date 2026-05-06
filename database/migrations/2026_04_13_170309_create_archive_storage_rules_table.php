@@ -28,24 +28,17 @@ return new class extends Migration
                 ->constrained('cabinets')
                 ->cascadeOnDelete();
 
-            // semakin kecil angka priority semakin dibutuhkan
             $table->unsignedInteger('priority');
 
-            /**
-             * 🔥 Pengganti generated column
-             * 0 = tidak ada subcategory (NULL)
-             */
             $table->unsignedBigInteger('subcategory_unique_key')->default(0);
 
             $table->timestamps();
 
-            // index untuk query performa
             $table->index(
                 ['category_id', 'subcategory_id', 'priority'],
                 'idx_storage_rules_category_subcategory_priority'
             );
 
-            // unique constraint (fix NULL problem)
             $table->unique(
                 ['category_id', 'subcategory_unique_key', 'priority'],
                 'uniq_storage_rules_category_subcategory_priority'
