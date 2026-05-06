@@ -32,8 +32,9 @@ return new class extends Migration
             $table->unsignedInteger('priority');
 
             // Untuk kebutuhan unique ketika subcategory_id NULL
+            // Untuk kebutuhan unique ketika subcategory_id NULL
             $table->unsignedBigInteger('subcategory_unique_key')
-                ->storedAs('COALESCE(subcategory_id, 0)');
+                ->storedAs('CASE WHEN subcategory_id IS NULL THEN 0 ELSE subcategory_id END');
 
             $table->timestamps();
 
