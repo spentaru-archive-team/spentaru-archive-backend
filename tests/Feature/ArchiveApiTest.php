@@ -8,6 +8,7 @@ use App\Models\Event;
 use App\Models\Subcategory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -185,5 +186,46 @@ class ArchiveApiTest extends TestCase
             [$newerArchive->id, $olderArchive->id],
             collect($relationSortResponse->json('data.data'))->pluck('id')->all()
         );
+    }
+
+    public function test_destroy_archive_deletes_qdrant_vector_from_ocr_text(): void
+    {
+        $actor = $this->createUser([
+            'role' => 'guru',
+            'username' => 'archive_destroy_actor',
+        ]);
+        Sanctum::actingAs($actor);
+
+        $archive = $this->createArchiveRecord([
+            'uploader' => $actor->id,
+            'uploader_model' => $actor,
+        ]);
+
+        $archive->files()->create([
+            'file_name' => 'arsip.pdf',
+            'file_size' => 2048,
+            'file_type' => 'pdf',
+            'extraction_status' => 'done',
+        ]);
+        $archive->ocrText()->create([
+            'extracted_text' => 'Hasil OCR untuk penghapusan arsip.',
+            'vector_id' => '11111111-1111-1111-1111-111111111111',
+        ]);
+
+        Http::fake([
+            '*' => Http::response([], 200),
+        ]);
+
+        $this->deleteJson("/api/v1/archives/{$archive->id}")
+            ->assertOk()
+            ->assertJson([
+                'status' => 'success',
+                'message' => 'sukses menghapus archive',
+            ]);
+
+        Http::assertSent(function ($request) {
+            return $request->method() === 'DELETE'
+                && $request->url() === 'http://localhost:5000/api/vector/11111111-1111-1111-1111-111111111111';
+        });
     }
 }

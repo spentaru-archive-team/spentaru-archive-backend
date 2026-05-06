@@ -27,9 +27,14 @@ class ArchiveStorageService
         }
 
         $cabinet = Cabinet::find($rule->cabinet_id);
+
+        if (! $cabinet) {
+            return null;
+        }
+
         $rack = $this->findAvailableRackInCabinet($cabinet->id);
 
-        if (! $rack || ! $cabinet) {
+        if (! $rack) {
             return null;
         }
 
@@ -95,12 +100,7 @@ class ArchiveStorageService
 
     private function generateLabelCode(Cabinet $cabinet, Rack $rack, int $slotNumber): string
     {
-        return sprintf(
-            'L%d-R%d-S%d',
-            $cabinet->id,
-            $rack->rack_number,
-            $slotNumber
-        );
+        return 'L' . $cabinet->cabinet_number . '-R' . $rack->rack_number . '-S' . $slotNumber;
     }
 
     public function assignLocation(Archive $archive, int $categoryId, ?int $subcategoryId = null): ?ArchivePhysicalLocation

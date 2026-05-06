@@ -340,13 +340,13 @@ class ArchiveController extends Controller
 
             $payload_ocr = [
                 'extracted_text' => $ocr,
+                'vector_id' => $vector_id,
             ];
 
             $payload_archive = [
                 'file_name' => $filename,
                 'file_size' => $file->getSize(),
                 'file_type' => strtolower($file->getClientOriginalExtension()),
-                'vector_id' => $vector_id,
                 'extraction_status' => 'done',
             ];
 
@@ -396,9 +396,10 @@ class ArchiveController extends Controller
      */
     public function update(UpdateArchiveRequest $request, string $id)
     {
-        $archive = Archive::with(['files', 'physicalLocation.rack'])->findOrFail($id);
+        $archive = Archive::with(['files', 'ocrText', 'physicalLocation.rack'])->findOrFail($id);
         $validated = $request->safe()->all();
         $oldFile = $archive->files;
+        $oldVectorId = $archive->ocrText?->vector_id;
 
         $archiveInput = collect($validated)
             ->except(['file'])
@@ -438,7 +439,7 @@ class ArchiveController extends Controller
         $storedPath = null;
         $filename = null;
         $file = null;
-        $ocr_payload = null;
+        $ocrPayload = null;
 
         try {
             if ($request->hasFile('file')) {
@@ -460,11 +461,14 @@ class ArchiveController extends Controller
                 $ocr = $ocr_result['data']['text'];
                 $vector_id = $ocr_result['data']['vector_id'];
 
-                $ocr_payload = ['extracted_text' => $ocr];
+                $ocrPayload = [
+                    'extracted_text' => $ocr,
+                    'vector_id' => $vector_id,
+                ];
                 // OCR end
             }
 
-            DB::transaction(function () use ($archive, $archiveData, $file, $filename, $needsRelocation, $oldRack) {
+            DB::transaction(function () use ($archive, $archiveData, $file, $filename, $needsRelocation, $oldRack, $ocrPayload) {
                 if ($archiveData !== []) {
                     $archive->update($archiveData);
                 }
@@ -475,12 +479,11 @@ class ArchiveController extends Controller
                         'file_name' => $filename,
                         'file_size' => $file->getSize(),
                         'file_type' => strtolower($file->getClientOriginalExtension()),
-                        'vector_id' => $vector_id,
                         'extraction_status' => 'done',
                     ]);
                     $archive->ocrText()->updateOrCreate(
                         ['archive_id' => $archive->id],
-                        ['extracted_text' => $ocr]
+                        $ocrPayload ?? []
                     );
                 }
 
@@ -504,6 +507,7 @@ class ArchiveController extends Controller
 
         if ($file) {
             $this->deleteArchiveFile($oldFile);
+            $this->deleteVectorFromQdrant($oldVectorId);
         }
 
         return response()->json([
@@ -518,11 +522,12 @@ class ArchiveController extends Controller
      */
     public function destroy(string $id)
     {
-        $archive = Archive::with(['files', 'physicalLocation.rack'])->findOrFail($id);
+        $archive = Archive::with(['files', 'ocrText', 'physicalLocation.rack'])->findOrFail($id);
         $file = $archive->files;
+        $vectorId = $archive->ocrText?->vector_id;
 
-        DB::transaction(function () use ($archive, $file) {
-            $this->deleteVectorFromQdrant($file?->vector_id);
+        DB::transaction(function () use ($archive, $vectorId) {
+            $this->deleteVectorFromQdrant($vectorId);
 
             if ($archive->physicalLocation?->rack) {
                 $archive->physicalLocation->rack->decrement('used_capacity');
@@ -554,15 +559,17 @@ class ArchiveController extends Controller
 
     public function decideRetention(DecideRetentionRequest $request, string $id)
     {
-        $archive = Archive::with(['files', 'physicalLocation.rack'])->findOrFail($id);
+        $archive = Archive::with(['files', 'ocrText', 'physicalLocation.rack'])->findOrFail($id);
 
         $fileToDelete = null;
+        $vectorIdToDelete = null;
 
-        DB::transaction(function () use ($archive, $request, &$fileToDelete) {
+        DB::transaction(function () use ($archive, $request, &$fileToDelete, &$vectorIdToDelete) {
             if ($request->retention_status === 'destroyed') {
                 $fileToDelete = $archive->files;
+                $vectorIdToDelete = $archive->ocrText?->vector_id;
 
-                $this->deleteVectorFromQdrant($fileToDelete?->vector_id);
+                $this->deleteVectorFromQdrant($vectorIdToDelete);
 
                 if ($archive->files) {
                     $archive->files()->delete();

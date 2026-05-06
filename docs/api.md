@@ -544,7 +544,7 @@ Catatan:
 - `subcategory.{id,category_id,name,created_at,updated_at}`
 - `files.{id,archive_id,file_name,file_size,file_type,created_at,updated_at}`
 - `physicalLocation.{id,archive_id,cabinet_id,rack_id,slot_number,label_code,notes,created_at,updated_at}`
-- `ocrText.{id,archive_id,extracted_text,created_at,updated_at}`
+- `ocrText.{id,archive_id,extracted_text,vector_id,created_at,updated_at}`
 - `uploader.{id,name,subject,position,username,password,role,last_login_at,created_at,updated_at}`
 - `retentionDecidedBy.{id,name,subject,position,username,password,role,last_login_at,created_at,updated_at}`
 
@@ -1044,10 +1044,13 @@ Body:
 Perilaku:
 
 - Payload `notes_physical_location` dinormalisasi menjadi kolom `notes`.
-- `label_code` dibentuk otomatis dengan format `L{cabinet_id}-R{rack_id}-S{slot_number}`.
+- `label_code` dibentuk otomatis dari `cabinet.cabinet_number`, `rack.rack_number`, dan `slot_number` dengan format `L{cabinet_number}-R{rack_number}-S{slot_number}`.
 - Backend validasi kapasitas: jika `used_capacity >= capacity` pada rack tujuan, return error `Rak tidak cukup kapasitas. Silakan pilih rak lain.`
 - `cabinet_id` harus mengacu ke `cabinets.id` yang valid.
 - `rack_id` harus mengacu ke `racks.id` yang valid.
+- `rack_id` harus memang berada di `cabinet_id` yang dipilih, jika tidak return `422` dengan message `Rak tidak berada di lemari yang dipilih`.
+- Kombinasi `rack_id` dan `slot_number` tidak boleh bentrok dengan physical location lain, jika slot sudah dipakai return `422` dengan message `Slot pada rak tersebut sudah terpakai`.
+- `slot_number` tidak boleh lebih besar dari `capacity` rack tujuan.
 - Jika `{id}` tidak ada di tabel `archives`, Laravel mengembalikan `404`.
 - Jika archive sudah punya physical location, endpoint mengembalikan `422` dengan message `Physical location archive sudah ada`.
 - Response sukses memuat relasi `cabinet` dan `rack`.
@@ -1077,6 +1080,9 @@ Perilaku:
 - Payload `notes_physical_location` dinormalisasi menjadi kolom `notes`.
 - `label_code` dihitung ulang dari kombinasi final `cabinet_id`, `rack_id`, dan `slot_number`, termasuk saat update partial.
 - Backend validasi kapasitas: jika `rack_id` berubah dan `used_capacity >= capacity` pada rack tujuan, return error `Rak tidak cukup kapasitas. Silakan pilih rak lain.` (Validasi di-skip jika `rack_id` tidak berubah).
+- Kombinasi final `cabinet_id` dan `rack_id` harus cocok. Jika rack tidak berada di lemari yang dipilih, return `422` dengan message `Rak tidak berada di lemari yang dipilih`.
+- Kombinasi final `rack_id` dan `slot_number` tidak boleh bentrok dengan physical location archive lain. Jika slot sudah dipakai, return `422` dengan message `Slot pada rak tersebut sudah terpakai`.
+- Validasi `slot_number <= capacity` tetap dihitung dari rack final, termasuk saat request hanya mengubah `slot_number`.
 - Hanya field yang nilainya benar-benar berubah yang akan di-update.
 - Jika `{id}` tidak ada di tabel `archives`, Laravel mengembalikan `404`.
 - Jika archive belum punya physical location, endpoint mengembalikan `404` dengan message `Physical location tidak ditemukan`.
@@ -1096,6 +1102,7 @@ Arti parameter:
 Perilaku:
 
 - Endpoint menghapus relasi physical location milik archive.
+- Endpoint ini dilindungi middleware `admin`, sehingga user non-admin akan mendapat `403`.
 - Jika `{id}` tidak ada di tabel `archives`, Laravel mengembalikan `404`.
 - Jika archive belum punya physical location, endpoint mengembalikan `404` dengan message `Physical location tidak ditemukan`.
 

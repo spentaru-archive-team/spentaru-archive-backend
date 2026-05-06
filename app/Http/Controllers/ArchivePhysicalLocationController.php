@@ -6,6 +6,7 @@ use App\Http\Requests\StoreArchivePhysicalLocationRequest;
 use App\Http\Requests\UpdateArchivePhysicalLocationRequest;
 use App\Models\Archive;
 use App\Models\ArchivePhysicalLocation;
+use App\Models\Cabinet;
 use App\Models\Rack;
 use Illuminate\Http\Request;
 
@@ -36,7 +37,9 @@ class ArchivePhysicalLocationController extends Controller
 
     private function buildLabelCode(array $payload): string
     {
-        return 'L'.$payload['cabinet_id'].'-R'.$payload['rack_id'].'-S'.$payload['slot_number'];
+        $cabinet_number = Cabinet::where('id', $payload['cabinet_id'])->value('cabinet_number');
+        $rack_number = Rack::where('id', $payload['rack_id'])->value('rack_number');
+        return 'L' . $cabinet_number . '-R' . $rack_number . '-S' . $payload['slot_number'];
     }
 
     public function index(Request $request)
@@ -71,10 +74,10 @@ class ArchivePhysicalLocationController extends Controller
         }
 
         if (empty($physicalLocations)) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Physical location tidak ditemukan',
-            ], 404);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Physical location tidak ditemukan',
+                ], 404);
         }
 
         return response()->json([

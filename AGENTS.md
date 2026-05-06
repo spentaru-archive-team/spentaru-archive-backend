@@ -91,7 +91,7 @@ Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
 - Perubahan role user di-log dan hanya bisa dilakukan oleh admin (bukan self-update).
 - Komunikasi AI service OCR memakai konfigurasi HTTP via `config/services.ai_gateway` (default `http://localhost:5000` untuk development, production wajib set env `AI_SERVICE_BASE_URL` ke HTTPS).
 - Delete archive dan retention status `destroyed` menghapus vector dari Qdrant via AI service endpoint `DELETE /api/vector/{vector_id}`.
-- Archive `archive_files` menyimpan `vector_id` dan `extraction_status` untuk tracking vector di Qdrant.
+- Archive `ocr_texts` menyimpan `vector_id`, sedangkan `archive_files` hanya menyimpan metadata file dan `extraction_status`.
 - AI search endpoint `/ai/tools/archives/search` memakai hybrid search: keyword (MySQL LIKE) + vector (Qdrant via AI service) dengan bobot 60% vector, 40% keyword, bonus 1.2x jika muncul di kedua sumber.
 - Middleware `EnsureFrontendRequestsAreStateful` ditambahkan eksplisit untuk CSRF protection.
 - CORS di-restrict ke origins, methods, dan headers eksplisit; wildcard dihapus.
