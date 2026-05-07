@@ -91,6 +91,7 @@ class AiGatewayApiTest extends TestCase
 
         $archive->ocrText()->create([
             'extracted_text' => 'Dokumen ini memiliki tanda tangan kepala sekolah Ahmad Mahmud pada halaman akhir.',
+            'vector_id' => 'vector-archive-'.$archive->id,
         ]);
 
         $archive->files()->create([
@@ -110,9 +111,9 @@ class AiGatewayApiTest extends TestCase
         return $archive;
     }
 
-    public function test_ai_chat_requires_authentication(): void
+    public function test_chat_ask_requires_authentication(): void
     {
-        $this->postJson('/api/v1/ai/chat/ask', [
+        $this->postJson('/api/v1/chat/ask', [
             'message' => 'Halo AI',
         ])->assertStatus(401)
             ->assertJson([
@@ -121,15 +122,21 @@ class AiGatewayApiTest extends TestCase
             ]);
     }
 
-    public function test_ai_chat_relays_success_payload_and_trace_id(): void
+    public function test_chat_ask_passthroughs_ai_response_and_trace_id(): void
     {
         $user = $this->authenticatedUser('admin');
         Sanctum::actingAs($user);
 
+        config()->set('services.ai_gateway.base_url', 'http://ai-service.test');
+        config()->set('services.ai_gateway.timeout', 30);
+
         Http::fake(function (Request $request) {
             $this->assertSame('trace-test-001', $request->header('X-Trace-Id')[0] ?? null);
             $this->assertSame('Halo AI', $request['message']);
-            $this->assertFalse((bool) $request['use_search']);
+            $this->assertTrue((bool) $request['use_search']);
+            $this->assertSame(0.5, $request['temperature']);
+            $this->assertSame(['archive_id' => 42], $request['context']);
+            $this->assertSame('http://ai-service.test/api/chat/ask', $request->url());
 
             return Http::response([
                 'status' => true,
@@ -139,19 +146,23 @@ class AiGatewayApiTest extends TestCase
                     'sources' => [],
                 ],
                 'trace_id' => 'trace-ai-service-001',
-            ], 200);
+            ], 200, [
+                'X-Trace-Id' => 'trace-ai-service-001',
+                'Content-Type' => 'application/json',
+            ]);
         });
 
         $response = $this->withHeader('X-Trace-Id', 'trace-test-001')
-            ->postJson('/api/v1/ai/chat/ask', [
+            ->postJson('/api/v1/chat/ask', [
                 'message' => 'Halo AI',
-                'use_search' => false,
+                'use_search' => true,
+                'temperature' => 0.5,
+                'context' => ['archive_id' => 42],
             ]);
 
         $response->assertOk()
             ->assertJson([
-                'status' => 'success',
-                'message' => 'sukses mendapatkan jawaban AI',
+                'status' => true,
                 'trace_id' => 'trace-ai-service-001',
                 'data' => [
                     'answer' => 'Halo juga, ada yang bisa dibantu?',
@@ -161,7 +172,7 @@ class AiGatewayApiTest extends TestCase
         $this->assertSame('trace-ai-service-001', $response->headers->get('X-Trace-Id'));
     }
 
-    public function test_ai_chat_maps_upstream_server_error_to_502(): void
+    public function test_chat_ask_passthroughs_upstream_error_response(): void
     {
         $user = $this->authenticatedUser('admin');
         Sanctum::actingAs($user);
@@ -176,14 +187,83 @@ class AiGatewayApiTest extends TestCase
             ], 500),
         ]);
 
-        $this->postJson('/api/v1/ai/chat/ask', [
+        $this->postJson('/api/v1/chat/ask', [
             'message' => 'Tes error',
-        ])->assertStatus(502)
+        ])->assertStatus(500)
             ->assertJson([
-                'status' => 'error',
-                'message' => 'upstream internal error',
+                'status' => false,
+                'error' => [
+                    'message' => 'upstream internal error',
+                ],
                 'trace_id' => 'trace-upstream-500',
             ]);
+    }
+
+    public function test_chat_ask_returns_502_when_ai_service_unreachable(): void
+    {
+        $user = $this->authenticatedUser('admin');
+        Sanctum::actingAs($user);
+
+        Http::fake(function () {
+            throw new ConnectionException('connection failed');
+        });
+
+        $this->withHeader('X-Trace-Id', 'trace-chat-down-001')
+            ->postJson('/api/v1/chat/ask', [
+                'message' => 'Tes down',
+            ])->assertStatus(502)
+            ->assertJson([
+                'status' => 'error',
+                'message' => 'AI Service unreachable',
+                'error' => 'AI Service unreachable',
+                'trace_id' => 'trace-chat-down-001',
+            ]);
+    }
+
+    public function test_chat_ask_validates_payload(): void
+    {
+        $user = $this->authenticatedUser('admin');
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/v1/chat/ask', [
+            'message' => '',
+            'use_search' => 'ya',
+            'temperature' => 2.5,
+            'context' => 123,
+        ])->assertStatus(422)
+            ->assertJson([
+                'status' => 'error',
+                'message' => 'Validasi gagal',
+            ])
+            ->assertJsonValidationErrors([
+                'message',
+                'use_search',
+                'temperature',
+                'context',
+            ]);
+    }
+
+    public function test_legacy_ai_chat_route_alias_still_works(): void
+    {
+        $user = $this->authenticatedUser('admin');
+        Sanctum::actingAs($user);
+
+        Http::fake([
+            '*' => Http::response([
+                'status' => true,
+                'data' => [
+                    'answer' => 'Lewat alias lama',
+                ],
+                'trace_id' => 'trace-legacy-001',
+            ], 200, [
+                'X-Trace-Id' => 'trace-legacy-001',
+            ]),
+        ]);
+
+        $this->postJson('/api/v1/ai/chat/ask', [
+            'message' => 'Tes alias',
+        ])->assertOk()
+            ->assertJsonPath('data.answer', 'Lewat alias lama');
     }
 
     public function test_ai_health_returns_gateway_error_when_service_unreachable(): void

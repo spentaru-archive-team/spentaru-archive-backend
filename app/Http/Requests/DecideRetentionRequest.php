@@ -25,7 +25,6 @@ class DecideRetentionRequest extends FormRequest
         return [
             'retention_status' => 'required|in:destroyed,retained,active',
             'retention_note' => 'nullable|string',
-            'retention_due_date' => 'required_unless:retention_status,destroyed|nullable|date',
         ];
     }
 }

@@ -122,7 +122,7 @@ class AiArchiveSearchService
 
         $maxKeywordScore = $keywordMap->max() ?: 1;
 
-        return $allArchiveIds->map(function ($archiveId) use ($vectorMap, $keywordMap, $maxKeywordScore) {
+        return $allArchiveIds->map(function ($archiveId) use ($vectorMap, $keywordMap, $keywordResults, $maxKeywordScore) {
             $inVector = $vectorMap->has($archiveId);
             $inKeyword = $keywordMap->has($archiveId);
 

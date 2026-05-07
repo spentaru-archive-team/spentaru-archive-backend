@@ -117,6 +117,11 @@ Route::prefix('v1')->group(function () {
         });
     });
 
+    Route::middleware(['auth:sanctum', 'throttle:30,1'])->group(function () {
+        Route::post('chat/ask', [AiGatewayController::class, 'askChat']);
+        Route::post('ai/chat/ask', [AiGatewayController::class, 'askChat']);
+    });
+
     Route::prefix('ai/tools')->middleware('ai.tool')->group(function () {
         Route::post('/archives/search', [AiGatewayController::class, 'searchArchivesTool']);
     });

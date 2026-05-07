@@ -158,6 +158,43 @@ class ArchiveController extends Controller
         return false;
     }
 
+    private function hasRetentionStatusSort(array $sorts): bool
+    {
+        foreach ($sorts as $sort) {
+            [$column] = array_pad(explode(':', $sort, 2), 2, 'asc');
+            $normalizedColumn = trim($column);
+
+            if (in_array($normalizedColumn, ['retention_status', 'archives.retention_status'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function hasTitleSort(array $sorts): bool
+    {
+        foreach ($sorts as $sort) {
+            [$column] = array_pad(explode(':', $sort, 2), 2, 'asc');
+            $normalizedColumn = trim($column);
+
+            if (in_array($normalizedColumn, ['title', 'archives.title'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function applyRetentionStatusOrder(Builder $query, string $direction = 'asc'): void
+    {
+        $cases = $direction === 'desc'
+            ? "WHEN 'destroyed' THEN 1 WHEN 'ready_for_destruction' THEN 2 WHEN 'retained' THEN 3 WHEN 'active' THEN 4 ELSE 5"
+            : "WHEN 'active' THEN 1 WHEN 'retained' THEN 2 WHEN 'ready_for_destruction' THEN 3 WHEN 'destroyed' THEN 4 ELSE 5";
+
+        $query->orderByRaw("CASE archives.retention_status {$cases} END");
+    }
+
     private function applyArchiveSearch(Builder $query, string $q): void
     {
         $escaped = str_replace(['%', '_', '\\'], ['\%', '\_', '\\\\'], $q);
@@ -200,6 +237,8 @@ class ArchiveController extends Controller
 
         $joinedCategory = false;
         $appliedSort = false;
+        $appliedRetentionStatusSort = false;
+        $hasTitleSort = $this->hasTitleSort($sorts);
 
         foreach ($sorts as $sort) {
             [$column, $direction] = array_pad(explode(':', $sort, 2), 2, 'asc');
@@ -224,12 +263,26 @@ class ArchiveController extends Controller
                 : $normalizedColumn;
 
             if (in_array($directColumn, $allowedDirectSorts, true)) {
-                $query->orderBy("archives.{$directColumn}", $normalizedDirection);
+                if ($directColumn === 'retention_status') {
+                    $this->applyRetentionStatusOrder($query, $normalizedDirection);
+                    $appliedRetentionStatusSort = true;
+                } else {
+                    $query->orderBy("archives.{$directColumn}", $normalizedDirection);
+                }
+
                 $appliedSort = true;
             }
         }
 
         if (! $appliedSort) {
+            $this->applyRetentionStatusOrder($query);
+            $query->orderBy('archives.title', 'asc');
+            $query->orderBy('archives.id', 'desc');
+            return;
+        }
+
+        if ($appliedRetentionStatusSort && ! $hasTitleSort) {
+            $query->orderBy('archives.title', 'asc');
             $query->orderBy('archives.id', 'desc');
         }
     }
@@ -253,8 +306,9 @@ class ArchiveController extends Controller
         $q = trim((string) $request->query('q', ''));
         $sorts = $this->normalizedSorts($request);
         $hasCategoryNameSort = $this->hasCategoryNameSort($sorts);
+        $hasRetentionStatusSort = $this->hasRetentionStatusSort($sorts);
 
-        $archives = Archive::search('')->query(function ($query) use ($q, $sorts, $hasCategoryNameSort) {
+        $archives = Archive::search('')->query(function ($query) use ($q, $sorts, $hasCategoryNameSort, $hasRetentionStatusSort) {
             $query->with([
                 'event',
                 'category',
@@ -269,7 +323,7 @@ class ArchiveController extends Controller
                 $this->applyArchiveSearch($query, $q);
             }
 
-            if ($hasCategoryNameSort) {
+            if ($hasCategoryNameSort || $hasRetentionStatusSort || empty($sorts)) {
                 $this->applyArchiveSorts($query, $sorts);
             } else {
                 $query->sort();
@@ -524,6 +578,7 @@ class ArchiveController extends Controller
     {
         $archive = Archive::with(['files', 'ocrText', 'physicalLocation.rack'])->findOrFail($id);
         $file = $archive->files;
+        $filename = $file['file_name'];
         $vectorId = $archive->ocrText?->vector_id;
 
         DB::transaction(function () use ($archive, $vectorId) {
@@ -535,12 +590,15 @@ class ArchiveController extends Controller
             $archive->delete();
         });
 
-        $this->deleteArchiveFile($file);
+        if (Storage::disk('local')->exists('uploads/'.$filename)) {
+            $this->deleteArchiveFile($file);
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'sukses menghapus archive',
-        ]);
+            return response()->json([
+                'status' => 'success',
+                'message' => 'sukses menghapus archive',
+            ]);
+        } else {
+        }
     }
 
     public function readyForDestruction()
@@ -563,8 +621,9 @@ class ArchiveController extends Controller
 
         $fileToDelete = null;
         $vectorIdToDelete = null;
+        $year = now()->year;
 
-        DB::transaction(function () use ($archive, $request, &$fileToDelete, &$vectorIdToDelete) {
+        DB::transaction(function () use ($archive, $request, &$fileToDelete, &$vectorIdToDelete, $year) {
             if ($request->retention_status === 'destroyed') {
                 $fileToDelete = $archive->files;
                 $vectorIdToDelete = $archive->ocrText?->vector_id;
@@ -582,13 +641,13 @@ class ArchiveController extends Controller
                     $archive->physicalLocation->delete();
                 }
             }
-
+            
             $archive->update([
                 'retention_status' => $request->retention_status,
                 'retention_decided_at' => now(),
                 'retention_decided_by' => Auth::id(),
                 'retention_note' => $request->retention_note,
-                'retention_due_date' => $request->retention_status === 'active' || $request->retention_status == 'retained' ? $request->retention_due_date : $archive->retention_due_date,
+                'retention_due_date' => $year ? now()->setYear($year)->startOfYear()->addYears(1)->toDateString() : null
             ]);
         });
 
@@ -596,11 +655,20 @@ class ArchiveController extends Controller
             $this->deleteArchiveFile($fileToDelete);
         }
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'keputusan retensi berhasil disimpan',
-            'data' => $archive->fresh(),
-        ]);
+
+        if ($request->retention_status !== 'destroyed') {
+            return response()->json([
+                'status' => 'success',
+                'message' => 'keputusan retensi berhasil disimpan, retension dipanjangkan jadi 1 tahun lagi',
+                'data' => $archive->fresh(),
+            ]);
+        } else {
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Retensi berhasil dihancurkan',
+                'data' => $archive->fresh(),
+            ]);
+        }
     }
 
     public function preview(string $id)

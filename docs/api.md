@@ -9,6 +9,7 @@ http://localhost:8000/api/v1
 ## Konvensi Umum
 
 - Response JSON mengikuti pola `status`, `message`, lalu opsional `data`, `errors`, `trace_id`.
+- Khusus endpoint proxy chat AI (`POST /chat/ask` dan alias legacy `POST /ai/chat/ask`), Laravel meneruskan body JSON dan status code dari AI service apa adanya. Format sukses/error endpoint ini mengikuti kontrak AI service, bukan wrapper Laravel lokal.
 - Auth API aktif memakai Laravel Sanctum stateful berbasis session cookie.
 - Endpoint internal AI tool `/ai/tools/archives/search` tidak memakai session Sanctum; aksesnya memakai shared secret header untuk service Python AI.
 - Fitur list tertentu mendukung `q` untuk pencarian teks bebas, `filters[...]` untuk penyaringan field, dan `sort` untuk pengurutan hasil.
@@ -123,11 +124,66 @@ http://localhost:8000/api/v1
 | `GET` | `/dashboard` | Ya | Ambil total arsip, kategori, subkategori, user |
 | `GET` | `/dashboard/teachers-without-archives` | Ya | List event guru yang belum punya archive, memuat relasi `user` |
 
+### AI Gateway
+
+| Method | Endpoint | Auth | Keterangan |
+|---|---|---|---|
+| `POST` | `/chat/ask` | Ya | Proxy utama chatbot ke AI service, throttle `30 request/menit`, response passthrough dari AI service |
+| `POST` | `/ai/chat/ask` | Ya | Alias legacy ke proxy chatbot yang sama untuk kompatibilitas |
+
 ### AI Tool
 
 | Method | Endpoint | Auth | Keterangan |
 |---|---|---|---|
 | `POST` | `/ai/tools/archives/search` | Header internal AI | Tool endpoint untuk agent Python mencari arsip berdasarkan `question` bebas |
+
+## Chat Ask Proxy
+
+```http
+POST /api/v1/chat/ask
+```
+
+Alias kompatibilitas:
+
+```http
+POST /api/v1/ai/chat/ask
+```
+
+Headers:
+
+```http
+Content-Type: application/json
+Accept: application/json
+X-Trace-Id: <optional-trace-id>
+```
+
+Body:
+
+| Key | Tipe | Wajib | Aturan |
+|---|---|---|---|
+| `message` | `string` | Ya | wajib, non-empty string |
+| `use_search` | `boolean` | Tidak | default `false` bila tidak dikirim |
+| `temperature` | `number` | Tidak | rentang `0` s/d `2` |
+| `context` | `string \| object \| array` | Tidak | diteruskan ke AI service bila ada |
+
+Contoh body:
+
+```json
+{
+  "message": "Carikan arsip tentang inventaris laboratorium",
+  "use_search": true,
+  "temperature": 0.5
+}
+```
+
+Perilaku proxy:
+
+- Endpoint dilindungi `auth:sanctum`.
+- Rate limit `throttle:30,1`.
+- Laravel menambahkan `X-Trace-Id` ke request upstream jika frontend belum mengirimkannya.
+- Request diteruskan ke `${AI_SERVICE_BASE_URL}/api/chat/ask` dengan timeout dari `AI_SERVICE_TIMEOUT`.
+- Jika AI service merespons sukses atau error HTTP normal, body JSON dan status code diteruskan apa adanya ke frontend.
+- Jika AI service timeout atau tidak dapat dihubungi, Laravel mengembalikan `502` dengan payload error lokal.
 
 ## AI Tool Header
 

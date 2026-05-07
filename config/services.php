@@ -37,7 +37,7 @@ return [
 
     'ai_gateway' => [
         'base_url' => rtrim((string) env('AI_SERVICE_BASE_URL', 'http://localhost:5000'), '/'),
-        'timeout' => (int) env('AI_SERVICE_TIMEOUT', 15),
+        'timeout' => (int) env('AI_SERVICE_TIMEOUT', 30),
     ],
 
     'ai_tool' => [

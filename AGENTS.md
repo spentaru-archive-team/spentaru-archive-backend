@@ -82,6 +82,7 @@ Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
 - Archive punya workflow retensi: `retention_due_date`, `retention_status`, `retention_decided_at`, `retention_decided_by`, `retention_note`.
 - Ada endpoint arsip tanpa lokasi fisik, arsip siap pemusnahan, dan keputusan retensi arsip.
 - Ada AI tool endpoint internal `POST /api/v1/ai/tools/archives/search` yang diakses service Python via shared secret header dan menerima `question` bebas.
+- Ada AI chat proxy terautentikasi `POST /api/v1/chat/ask` dengan alias legacy `POST /api/v1/ai/chat/ask`; endpoint ini meneruskan response AI service apa adanya dan dibatasi `throttle:30,1`.
 - Dashboard punya endpoint daftar guru dengan event yang belum memiliki archive.
 - Global JSON exception handling ada di `bootstrap/app.php` untuk 401, 403, 405, 422, 429, dan 500.
 - Semua endpoint CRUD memiliki rate limiting: POST/PUT 30 req/menit, DELETE 10 req/menit, GET list 60 req/menit.
@@ -120,6 +121,8 @@ retention domain
   /archives/{id}/retention/decide
 
 ai gateway
+  /chat/ask
+  /ai/chat/ask
   /ai/tools/archives/search
 ```
 
@@ -171,7 +174,7 @@ app/Http/Controllers/ArchiveStorageRuleController.php
   CRUD archive storage rule (admin-only)
 
 app/Http/Controllers/AiGatewayController.php
-  search archives tool endpoint
+  proxy chat AI + search archives tool endpoint
 
 app/Services/ArchiveStorageService.php
   cari slot available + assign label_code
