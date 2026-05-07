@@ -50,22 +50,16 @@ class DashboardController extends Controller
 
     public function teachersWithoutArchives(Request $request): JsonResponse
     {
-        $query = Event::with('user')
+        $user = $request->user();
+        $data = Event::with('user')
             ->whereDoesntHave('archives')
-            ->whereHas('user', fn ($query) => $query->where('role', 'guru'))
+            ->where('id', $user->id)
             ->orderByDesc('date')
-            ->orderByDesc('created_at');
-
-        if ($request->boolean('all')) {
-            $data = $query->get();
-        } else {
-            $perPage = $request->query('per_page', 10);
-            $data = $query->paginate($perPage);
-        }
+            ->orderByDesc('created_at')->get();
 
         return response()->json([
             'status' => 'success',
-            'message' => 'sukses mengambil daftar guru yang belum upload arsip',
+            'message' => 'sukses mengambil daftar event yang belum diupload arsipnya',
             'data' => $data,
         ]);
     }
