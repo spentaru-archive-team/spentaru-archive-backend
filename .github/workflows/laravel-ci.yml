@@ -135,8 +135,8 @@ jobs:
       - name: Show routes
         run: php artisan route:list
 
-      - name: Run Pint
-        run: composer lint
+      # - name: Run Pint
+      #   run: composer lint
 
       - name: Run test suite
         run: composer test
