@@ -100,7 +100,7 @@ class ArchiveStorageService
 
     private function generateLabelCode(Cabinet $cabinet, Rack $rack, int $slotNumber): string
     {
-        return 'L' . $cabinet->cabinet_number . '-R' . $rack->rack_number . '-S' . $slotNumber;
+        return 'L'.$cabinet->cabinet_number.'-R'.$rack->rack_number.'-S'.$slotNumber;
     }
 
     public function assignLocation(Archive $archive, int $categoryId, ?int $subcategoryId = null): ?ArchivePhysicalLocation

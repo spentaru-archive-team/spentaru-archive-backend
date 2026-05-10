@@ -22,7 +22,7 @@ class ArchiveSeederTest extends TestCase
         $admin = User::query()->where('username', 'admin')->firstOrFail();
 
         $this->assertSame(1, User::query()->where('username', 'admin')->count());
-        $this->assertSame(1, User::query()->where('username', 'guru_demo')->count());
+        $this->assertSame(1, User::query()->where('username', 'guru_bindo')->count());
         $this->assertTrue(Hash::check('password', $admin->password));
 
         ArchivePhysicalLocation::query()

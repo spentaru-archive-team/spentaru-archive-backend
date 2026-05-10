@@ -27,7 +27,7 @@ class UpdateArchivePhysicalLocationRequest extends FormRequest
     public function rules(): array
     {
         $archiveId = $this->route('id');
-        $currentLocation = \App\Models\ArchivePhysicalLocation::where('archive_id', $archiveId)->first();
+        $currentLocation = ArchivePhysicalLocation::where('archive_id', $archiveId)->first();
         $currentRackId = $currentLocation?->rack_id;
 
         return [
@@ -53,8 +53,7 @@ class UpdateArchivePhysicalLocationRequest extends FormRequest
         ];
     }
 
-
-        protected function failedValidation(Validator $validator)
+    protected function failedValidation(Validator $validator)
     {
         throw new HttpResponseException(
             response()->json([

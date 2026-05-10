@@ -9,7 +9,7 @@ Backend Laravel 13 untuk sistem arsip sekolah dengan auth Sanctum stateful berba
 - MySQL
 - Laravel Sanctum
 - Laravel Scout
-- Redis opsional untuk cache, queue, atau session
+- Redis untuk session/cache dan riwayat chat AI
 
 ## Fitur Utama
 
@@ -24,6 +24,7 @@ Backend Laravel 13 untuk sistem arsip sekolah dengan auth Sanctum stateful berba
 - Filter dan sort dinamis via query string pada endpoint list `archives`, `events`, dan `archives/physical-locations`
 - Dashboard ringkas untuk total arsip, kategori, subkategori, dan user
 - AI tool endpoint untuk search arsip via service Python
+- AI chat proxy terautentikasi dengan header wajib `X-Trace-Id` dari frontend dan riwayat chat per user di Redis
 - Workflow retensi arsip: arsip tanpa lokasi, arsip siap pemusnahan, dan keputusan retensi
 - Rate limiting pada semua endpoint CRUD
 - Role protection dengan audit logging untuk perubahan role user

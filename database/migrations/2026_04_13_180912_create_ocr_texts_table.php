@@ -14,7 +14,7 @@ return new class extends Migration
                 ->constrained('archives')
                 ->cascadeOnDelete();
             $table->longText('extracted_text');
-            $table->string('vector_id', 36)->unique(); //bentuknya uuid
+            $table->string('vector_id', 36)->unique(); // bentuknya uuid
             $table->timestamps();
 
             $table->unique('archive_id');

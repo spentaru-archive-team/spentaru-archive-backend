@@ -70,7 +70,7 @@ class ArchiveStorageRuleControllerUpdateRequest extends FormRequest
                 },
 
                 Rule::exists('subcategories', 'id')
-                    ->where(fn($query) => $query->where('category_id', $categoryId)),
+                    ->where(fn ($query) => $query->where('category_id', $categoryId)),
             ],
 
             'cabinet_id' => [

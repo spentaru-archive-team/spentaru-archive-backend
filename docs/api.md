@@ -10,6 +10,7 @@ http://localhost:8000/api/v1
 
 - Response JSON mengikuti pola `status`, `message`, lalu opsional `data`, `errors`, `trace_id`.
 - Khusus endpoint proxy chat AI (`POST /chat/ask` dan alias legacy `POST /ai/chat/ask`), Laravel meneruskan body JSON dan status code dari AI service apa adanya. Format sukses/error endpoint ini mengikuti kontrak AI service, bukan wrapper Laravel lokal.
+- Khusus endpoint proxy chat AI, frontend wajib mengirim header `X-Trace-Id` yang non-empty agar request bisa diteruskan ke AI service.
 - Auth API aktif memakai Laravel Sanctum stateful berbasis session cookie.
 - Endpoint internal AI tool `/ai/tools/archives/search` tidak memakai session Sanctum; aksesnya memakai shared secret header untuk service Python AI.
 - Fitur list tertentu mendukung `q` untuk pencarian teks bebas, `filters[...]` untuk penyaringan field, dan `sort` untuk pengurutan hasil.
@@ -154,7 +155,7 @@ Headers:
 ```http
 Content-Type: application/json
 Accept: application/json
-X-Trace-Id: <optional-trace-id>
+X-Trace-Id: <required-trace-id-from-frontend>
 ```
 
 Body:
@@ -163,16 +164,13 @@ Body:
 |---|---|---|---|
 | `message` | `string` | Ya | wajib, non-empty string |
 | `use_search` | `boolean` | Tidak | default `false` bila tidak dikirim |
-| `temperature` | `number` | Tidak | rentang `0` s/d `2` |
-| `context` | `string \| object \| array` | Tidak | diteruskan ke AI service bila ada |
 
 Contoh body:
 
 ```json
 {
   "message": "Carikan arsip tentang inventaris laboratorium",
-  "use_search": true,
-  "temperature": 0.5
+  "use_search": true
 }
 ```
 
@@ -180,8 +178,12 @@ Perilaku proxy:
 
 - Endpoint dilindungi `auth:sanctum`.
 - Rate limit `throttle:30,1`.
-- Laravel menambahkan `X-Trace-Id` ke request upstream jika frontend belum mengirimkannya.
+- Request ditolak `422` jika header `X-Trace-Id` tidak dikirim atau kosong.
+- Header `X-Trace-Id` dari frontend diteruskan apa adanya ke AI service upstream.
 - Request diteruskan ke `${AI_SERVICE_BASE_URL}/api/chat/ask` dengan timeout dari `AI_SERVICE_TIMEOUT`.
+- Payload yang diteruskan ke AI service memakai `message` berisi array riwayat chat dari Redis, dengan item `{ "role": "user|assistant", "content": "..." }`; `use_search` tetap diteruskan jika dikirim frontend.
+- Riwayat chat disimpan per user di Redis key `chat:session:user:{id}:messages`; counter request memakai `chat:session:user:{id}:request_count`. Riwayat otomatis direset setelah 50 request sukses dan request upstream hanya mengambil maksimal 100 pesan terakhir.
+- Jika AI service sukses dan mengembalikan `data.answer`, jawaban assistant ikut ditambahkan ke riwayat. Jika AI service error atau tidak bisa dihubungi, pesan user terakhir dibatalkan dari riwayat.
 - Jika AI service merespons sukses atau error HTTP normal, body JSON dan status code diteruskan apa adanya ke frontend.
 - Jika AI service timeout atau tidak dapat dihubungi, Laravel mengembalikan `502` dengan payload error lokal.
 

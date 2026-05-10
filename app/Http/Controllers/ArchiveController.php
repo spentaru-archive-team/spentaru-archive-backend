@@ -278,6 +278,7 @@ class ArchiveController extends Controller
             $this->applyRetentionStatusOrder($query);
             $query->orderBy('archives.title', 'asc');
             $query->orderBy('archives.id', 'desc');
+
             return;
         }
 
@@ -578,7 +579,6 @@ class ArchiveController extends Controller
     {
         $archive = Archive::with(['files', 'ocrText', 'physicalLocation.rack'])->findOrFail($id);
         $file = $archive->files;
-        $filename = $file['file_name'];
         $vectorId = $archive->ocrText?->vector_id;
 
         DB::transaction(function () use ($archive, $vectorId) {
@@ -590,15 +590,12 @@ class ArchiveController extends Controller
             $archive->delete();
         });
 
-        if (Storage::disk('local')->exists('uploads/'.$filename)) {
-            $this->deleteArchiveFile($file);
+        $this->deleteArchiveFile($file);
 
-            return response()->json([
-                'status' => 'success',
-                'message' => 'sukses menghapus archive',
-            ]);
-        } else {
-        }
+        return response()->json([
+            'status' => 'success',
+            'message' => 'sukses menghapus archive',
+        ]);
     }
 
     public function readyForDestruction()
@@ -641,20 +638,19 @@ class ArchiveController extends Controller
                     $archive->physicalLocation->delete();
                 }
             }
-            
+
             $archive->update([
                 'retention_status' => $request->retention_status,
                 'retention_decided_at' => now(),
                 'retention_decided_by' => Auth::id(),
                 'retention_note' => $request->retention_note,
-                'retention_due_date' => $year ? now()->setYear($year)->startOfYear()->addYears(1)->toDateString() : null
+                'retention_due_date' => $year ? now()->setYear($year)->startOfYear()->addYears(1)->toDateString() : null,
             ]);
         });
 
         if ($request->retention_status === 'destroyed') {
             $this->deleteArchiveFile($fileToDelete);
         }
-
 
         if ($request->retention_status !== 'destroyed') {
             return response()->json([

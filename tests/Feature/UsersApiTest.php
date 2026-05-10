@@ -95,7 +95,7 @@ class UsersApiTest extends TestCase
             ->assertOk()
             ->assertJson([
                 'status' => 'success',
-                'message' => 'sukses menampilkan semua data user',
+                'message' => 'sukses menampilkan data user',
             ])
             ->assertJsonStructure([
                 'status',
@@ -140,6 +140,8 @@ class UsersApiTest extends TestCase
 
         $response = $this->postJson('/api/v1/users', [
             'name' => 'Admin Baru',
+            'subject' => 'Administrasi',
+            'position' => 'Administrator',
             'username' => 'admin_baru',
             'password' => 'Password123',
             'role' => 'admin',
@@ -159,6 +161,8 @@ class UsersApiTest extends TestCase
 
         $createdUser = User::where('username', 'admin_baru')->firstOrFail();
         $this->assertSame('Admin Baru', $createdUser->name);
+        $this->assertSame('Administrasi', $createdUser->subject);
+        $this->assertSame('Administrator', $createdUser->position);
         $this->assertSame('admin', $createdUser->role);
         $this->assertTrue(Hash::check('Password123', $createdUser->password));
     }
@@ -186,7 +190,7 @@ class UsersApiTest extends TestCase
                 'status' => 'error',
                 'message' => 'Validasi gagal',
             ])
-            ->assertJsonValidationErrors(['name', 'username', 'role']);
+            ->assertJsonValidationErrors(['name', 'subject', 'position', 'username']);
     }
 
     public function test_update_user_without_password_keeps_existing_password(): void
@@ -202,6 +206,8 @@ class UsersApiTest extends TestCase
 
         $this->putJson("/api/v1/users/{$targetUser->id}", [
             'name' => 'Nama Baru',
+            'subject' => 'Kearsipan Digital',
+            'position' => 'Koordinator Arsip',
             'username' => 'user_baru_tetap',
             'password' => null,
             'role' => 'admin',
@@ -211,6 +217,8 @@ class UsersApiTest extends TestCase
                 'message' => 'sukses mengupdate user',
                 'data' => [
                     'name' => 'Nama Baru',
+                    'subject' => 'Kearsipan Digital',
+                    'position' => 'Koordinator Arsip',
                     'username' => 'user_baru_tetap',
                     'role' => 'admin',
                 ],
@@ -219,6 +227,8 @@ class UsersApiTest extends TestCase
         $targetUser->refresh();
         $this->assertSame($oldPasswordHash, $targetUser->password);
         $this->assertSame('Nama Baru', $targetUser->name);
+        $this->assertSame('Kearsipan Digital', $targetUser->subject);
+        $this->assertSame('Koordinator Arsip', $targetUser->position);
         $this->assertSame('user_baru_tetap', $targetUser->username);
         $this->assertSame('admin', $targetUser->role);
     }
@@ -234,6 +244,8 @@ class UsersApiTest extends TestCase
 
         $this->putJson("/api/v1/users/{$targetUser->id}", [
             'name' => 'User Password Baru',
+            'subject' => 'Informatika',
+            'position' => 'Guru Mapel',
             'username' => 'user_password_baru',
             'password' => 'NewPass123',
             'role' => 'guru',
@@ -250,6 +262,8 @@ class UsersApiTest extends TestCase
 
         $this->putJson('/api/v1/users/999999', [
             'name' => 'Missing User',
+            'subject' => 'Kearsipan',
+            'position' => 'Guru',
             'username' => 'missing_user',
             'role' => 'guru',
         ])->assertNotFound()

@@ -191,7 +191,7 @@ class ArchiveApiTest extends TestCase
     public function test_destroy_archive_deletes_qdrant_vector_from_ocr_text(): void
     {
         $actor = $this->createUser([
-            'role' => 'guru',
+            'role' => 'admin',
             'username' => 'archive_destroy_actor',
         ]);
         Sanctum::actingAs($actor);

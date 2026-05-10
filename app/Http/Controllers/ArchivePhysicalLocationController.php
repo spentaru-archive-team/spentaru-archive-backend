@@ -39,7 +39,8 @@ class ArchivePhysicalLocationController extends Controller
     {
         $cabinet_number = Cabinet::where('id', $payload['cabinet_id'])->value('cabinet_number');
         $rack_number = Rack::where('id', $payload['rack_id'])->value('rack_number');
-        return 'L' . $cabinet_number . '-R' . $rack_number . '-S' . $payload['slot_number'];
+
+        return 'L'.$cabinet_number.'-R'.$rack_number.'-S'.$payload['slot_number'];
     }
 
     public function index(Request $request)
@@ -74,10 +75,10 @@ class ArchivePhysicalLocationController extends Controller
         }
 
         if (empty($physicalLocations)) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Physical location tidak ditemukan',
-                ], 404);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Physical location tidak ditemukan',
+            ], 404);
         }
 
         return response()->json([

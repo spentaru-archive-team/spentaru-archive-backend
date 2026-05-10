@@ -11,6 +11,15 @@ class AuthApiTest extends TestCase
     use CreatesApiFixtures;
     use RefreshDatabase;
 
+    private function statefulHeaders(): array
+    {
+        return [
+            'Accept' => 'application/json',
+            'Origin' => 'http://localhost:3000',
+            'Referer' => 'http://localhost:3000',
+        ];
+    }
+
     public function test_login_validates_required_payload(): void
     {
         $this->postJson('/api/v1/auth/login', [])
@@ -48,10 +57,11 @@ class AuthApiTest extends TestCase
             'role' => 'admin',
         ]);
 
-        $response = $this->postJson('/api/v1/auth/login', [
-            'username' => 'admin_login',
-            'password' => 'Password123',
-        ]);
+        $response = $this->withHeaders($this->statefulHeaders())
+            ->postJson('/api/v1/auth/login', [
+                'username' => 'admin_login',
+                'password' => 'Password123',
+            ]);
 
         $response->assertOk()
             ->assertJson([
@@ -132,7 +142,8 @@ class AuthApiTest extends TestCase
 
         $this->actingAs($user, 'web');
 
-        $this->postJson('/api/v1/auth/logout')
+        $this->withHeaders($this->statefulHeaders())
+            ->postJson('/api/v1/auth/logout')
             ->assertOk()
             ->assertJson([
                 'status' => 'success',

@@ -13,7 +13,7 @@ class OcrText extends Model
     protected $fillable = [
         'archive_id',
         'extracted_text',
-        'vector_id'
+        'vector_id',
     ];
 
     public function archive(): BelongsTo
