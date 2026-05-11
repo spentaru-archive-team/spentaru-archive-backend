@@ -714,12 +714,12 @@ Body `multipart/form-data`:
 | `event_id` | `integer` | Tidak | nullable, `exists:events,id` |
 | `category_id` | `integer` | Ya | `exists:archive_categories,id` |
 | `subcategory_id` | `integer` | Tidak | nullable, `exists:subcategories,id` |
-| `uploader` | `integer` | Tidak | nullable, `exists:users,id` |
 
 Perilaku:
 
 - File disimpan ke disk `local` pada path internal `uploads/<slug>.<ext>`.
-- MIME type file divalidasi server-side: hanya `application/pdf`, `application/msword`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`, `application/vnd.ms-excel`, `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` yang diterima.
+- MIME type file divalidasi server-side: hanya `application/pdf`, `application/msword`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`, `application/vnd.ms-excel`, `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, `image/jpeg`, dan `image/png` yang diterima.
+- `uploader` tidak diterima dari request; backend selalu memakai user yang sedang login.
 - `retention_due_date` otomatis diisi ke awal tahun arsip + 10 tahun.
 - `retention_status` awal adalah `active`.
 - Jika category sudah punya subcategory, maka `subcategory_id` wajib diisi.
@@ -909,6 +909,7 @@ Body mendukung partial update.
 
 Perilaku:
 
+- Field `uploader` tidak bisa diubah melalui endpoint ini.
 - Jika file diganti, metadata file lama dihapus dan file fisik lama ikut dibersihkan setelah transaksi sukses.
 - Jika `category_id` atau `subcategory_id` berubah, archive akan auto-relocate ke rak baru (rack lama di-decrement, rack baru di-increment).
 

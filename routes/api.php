@@ -26,11 +26,11 @@ Route::prefix('v1')->group(function () {
 
     Route::prefix('archives')->group(function () {
         Route::middleware('auth:sanctum')->group(function () {
-            Route::get('/', [ArchiveController::class, 'index']);
+            Route::get('/', [ArchiveController::class, 'index'])->middleware('throttle:60,1');
             Route::post('/', [ArchiveController::class, 'store'])->middleware('throttle:30,1');
 
-            Route::get('/without-location', [ArchiveController::class, 'archivesWithoutLocation']);
-            Route::get('/physical-locations', [ArchivePhysicalLocationController::class, 'index']);
+            Route::get('/without-location', [ArchiveController::class, 'archivesWithoutLocation'])->middleware('throttle:60,1');
+            Route::get('/physical-locations', [ArchivePhysicalLocationController::class, 'index'])->middleware('throttle:60,1');
 
             Route::get('/{id}', [ArchiveController::class, 'show']);
             Route::put('/{id}', [ArchiveController::class, 'update'])->middleware('throttle:30,1');
@@ -50,8 +50,8 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::prefix('events')->middleware('auth:sanctum')->group(function () {
-        Route::get('/', [EventController::class, 'index']);
-        Route::get('/pending-uploads', [EventController::class, 'getPendingUploads']);
+        Route::get('/', [EventController::class, 'index'])->middleware('throttle:60,1');
+        Route::get('/pending-uploads', [EventController::class, 'getPendingUploads'])->middleware('throttle:60,1');
         Route::get('/{id}', [EventController::class, 'show']);
         Route::middleware(['auth:sanctum', 'admin', 'throttle:30,1'])->group(function () {
             Route::post('/', [EventController::class, 'store']);
@@ -61,7 +61,7 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::prefix('categories')->middleware('auth:sanctum')->group(function () {
-        Route::get('/', [CategoryController::class, 'index']);
+        Route::get('/', [CategoryController::class, 'index'])->middleware('throttle:60,1');
         Route::get('/{id}', [CategoryController::class, 'show']);
 
         Route::middleware(['auth:sanctum', 'admin', 'throttle:30,1'])->group(function () {
@@ -72,7 +72,7 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::prefix('subcategories')->middleware('auth:sanctum')->group(function () {
-        Route::get('/', [SubcategoryController::class, 'index']);
+        Route::get('/', [SubcategoryController::class, 'index'])->middleware('throttle:60,1');
         Route::get('/{id}', [SubcategoryController::class, 'show']);
         Route::middleware(['auth:sanctum', 'admin', 'throttle:30,1'])->group(function () {
             Route::post('/', [SubcategoryController::class, 'store']);
@@ -82,7 +82,7 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::prefix('cabinets')->middleware('auth:sanctum')->group(function () {
-        Route::get('/', [CabinetController::class, 'index']);
+        Route::get('/', [CabinetController::class, 'index'])->middleware('throttle:60,1');
         Route::get('/{id}', [CabinetController::class, 'show']);
         Route::middleware(['auth:sanctum', 'admin', 'throttle:30,1'])->group(function () {
             Route::post('/', [CabinetController::class, 'store']);
@@ -92,7 +92,7 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::prefix('racks')->middleware('auth:sanctum')->group(function () {
-        Route::get('/', [RackController::class, 'index']);
+        Route::get('/', [RackController::class, 'index'])->middleware('throttle:60,1');
         Route::get('/{id}', [RackController::class, 'show']);
 
         Route::middleware(['auth:sanctum', 'admin', 'throttle:30,1'])->group(function () {
@@ -108,9 +108,12 @@ Route::prefix('v1')->group(function () {
             Route::put('/me', [UserController::class, 'updateMe'])->middleware('throttle:10,1');
         });
 
+        Route::middleware(['auth:sanctum', 'admin'])->group(function () {
+            Route::get('/', [UserController::class, 'index'])->middleware('throttle:60,1');
+        });
+
         Route::middleware(['auth:sanctum', 'admin', 'throttle:30,1'])->group(function () {
             Route::put('/{id}', [UserController::class, 'update']);
-            Route::get('/', [UserController::class, 'index']);
             Route::post('/', [UserController::class, 'store']);
             Route::delete('/{id}', [UserController::class, 'destroy']);
             Route::put('/{id}/reset-password', [UserController::class, 'reset_password']);
@@ -122,7 +125,7 @@ Route::prefix('v1')->group(function () {
         Route::post('ai/chat/ask', [AiGatewayController::class, 'askChat']);
     });
 
-    Route::prefix('ai/tools')->middleware('ai.tool')->group(function () {
+    Route::prefix('ai/tools')->middleware(['ai.tool', 'throttle:30,1'])->group(function () {
         Route::post('/archives/search', [AiGatewayController::class, 'searchArchivesTool']);
     });
 
@@ -131,9 +134,14 @@ Route::prefix('v1')->group(function () {
         Route::get('/teachers-without-archives', [DashboardController::class, 'teachersWithoutArchives']);
     });
 
+    Route::middleware(['admin', 'auth:sanctum'])->group(function () {
+        Route::prefix('archive-storage-rules')->group(function () {
+            Route::get('/', [ArchiveStorageRuleController::class, 'index'])->middleware('throttle:60,1');
+        });
+    });
+
     Route::middleware(['admin', 'auth:sanctum', 'throttle:30,1'])->group(function () {
         Route::prefix('archive-storage-rules')->group(function () {
-            Route::get('/', [ArchiveStorageRuleController::class, 'index']);
             Route::post('/', [ArchiveStorageRuleController::class, 'store']);
             Route::get('/{id}', [ArchiveStorageRuleController::class, 'show']);
             Route::patch('/{id}', [ArchiveStorageRuleController::class, 'update']);

@@ -228,4 +228,33 @@ class ArchiveApiTest extends TestCase
                 && $request->url() === 'http://localhost:5000/api/vector/11111111-1111-1111-1111-111111111111';
         });
     }
+
+    public function test_update_archive_cannot_change_uploader_from_request_payload(): void
+    {
+        $actor = $this->createUser([
+            'role' => 'guru',
+            'username' => 'archive_update_actor',
+        ]);
+        $otherUser = $this->createUser([
+            'username' => 'archive_update_other',
+        ]);
+        $archive = $this->createArchiveRecord([
+            'uploader' => $actor->id,
+            'uploader_model' => $actor,
+        ]);
+
+        Sanctum::actingAs($actor);
+
+        $this->putJson("/api/v1/archives/{$archive->id}", [
+            'title' => 'Judul Tetap Aman',
+            'uploader' => $otherUser->id,
+        ])->assertOk()
+            ->assertJsonPath('data.title', 'Judul Tetap Aman')
+            ->assertJsonPath('data.uploader', $actor->id);
+
+        $this->assertDatabaseHas('archives', [
+            'id' => $archive->id,
+            'uploader' => $actor->id,
+        ]);
+    }
 }

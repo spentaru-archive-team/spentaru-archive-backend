@@ -30,7 +30,6 @@ class UpdateArchiveRequest extends FormRequest
             'event_id' => 'sometimes|nullable|integer|min:0|exists:events,id',
             'category_id' => 'sometimes|required|integer|min:0|exists:archive_categories,id',
             'subcategory_id' => 'sometimes|nullable|integer|min:0|exists:subcategories,id',
-            'uploader' => 'sometimes|nullable|integer|min:0|exists:users,id',
         ];
     }
 }

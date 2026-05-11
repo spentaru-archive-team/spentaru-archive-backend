@@ -16,9 +16,9 @@ return [
 
     'allowed_origins_patterns' => [],
 
-    'allowed_headers' => ['Content-Type', 'Authorization', 'X-Requested-With', 'X-XSRF-TOKEN', 'X-AI-Tool-Key'],
+    'allowed_headers' => ['Content-Type', 'Authorization', 'X-Requested-With', 'X-XSRF-TOKEN', 'X-AI-Tool-Key', 'X-Trace-Id'],
 
-    'exposed_headers' => [],
+    'exposed_headers' => ['X-Trace-Id'],
 
     'max_age' => 3600,
 

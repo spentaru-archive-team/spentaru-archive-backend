@@ -14,18 +14,24 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->call([
-            UserSeeder::class,
-            ArchiveCategorySeeder::class,
-            SubcategorySeeder::class,
-            CabinetSeeder::class,
-            RackSeeder::class,
-            EventSeeder::class,
-            ArchiveStorageRuleSeeder::class,
-            ArchiveSeeder::class,
-            ArchiveFileSeeder::class,
-            ArchivePhysicalLocationSeeder::class,
-            OcrTextSeeder::class,
-        ]);
+        if (env('APP_ENV') == 'local') {
+            $this->call([
+                UserSeeder::class,
+                ArchiveCategorySeeder::class,
+                SubcategorySeeder::class,
+                CabinetSeeder::class,
+                RackSeeder::class,
+                EventSeeder::class,
+                ArchiveStorageRuleSeeder::class,
+                ArchiveSeeder::class,
+                ArchiveFileSeeder::class,
+                ArchivePhysicalLocationSeeder::class,
+                OcrTextSeeder::class,
+            ]);
+        } else {
+            $this->call([
+                ProductionSeeder::class
+            ]);
+        }
     }
 }

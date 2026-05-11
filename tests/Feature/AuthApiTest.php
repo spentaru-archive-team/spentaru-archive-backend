@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Routing\Middleware\ThrottleRequests;
 use Tests\Feature\Concerns\CreatesApiFixtures;
 use Tests\TestCase;
 
@@ -11,12 +12,22 @@ class AuthApiTest extends TestCase
     use CreatesApiFixtures;
     use RefreshDatabase;
 
+    private const CSRF_TOKEN = 'test-csrf-token';
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->withoutMiddleware(ThrottleRequests::class);
+    }
+
     private function statefulHeaders(): array
     {
         return [
             'Accept' => 'application/json',
             'Origin' => 'http://localhost:3000',
             'Referer' => 'http://localhost:3000',
+            'X-CSRF-TOKEN' => self::CSRF_TOKEN,
         ];
     }
 
@@ -57,7 +68,8 @@ class AuthApiTest extends TestCase
             'role' => 'admin',
         ]);
 
-        $response = $this->withHeaders($this->statefulHeaders())
+        $response = $this->withSession(['_token' => self::CSRF_TOKEN])
+            ->withHeaders($this->statefulHeaders())
             ->postJson('/api/v1/auth/login', [
                 'username' => 'admin_login',
                 'password' => 'Password123',
@@ -142,7 +154,8 @@ class AuthApiTest extends TestCase
 
         $this->actingAs($user, 'web');
 
-        $this->withHeaders($this->statefulHeaders())
+        $this->withSession(['_token' => self::CSRF_TOKEN])
+            ->withHeaders($this->statefulHeaders())
             ->postJson('/api/v1/auth/logout')
             ->assertOk()
             ->assertJson([
