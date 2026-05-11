@@ -1,8 +1,5 @@
 <?php
 
-<<<<<<< HEAD
-use App\Http\Controllers\AuthController;
-=======
 use App\Http\Controllers\AiGatewayController;
 use App\Http\Controllers\ArchiveController;
 use App\Http\Controllers\ArchivePhysicalLocationController;
@@ -15,23 +12,16 @@ use App\Http\Controllers\EventController;
 use App\Http\Controllers\RackController;
 use App\Http\Controllers\SubcategoryController;
 use App\Http\Controllers\UserController;
->>>>>>> dev
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
     Route::prefix('auth')->group(function () {
-<<<<<<< HEAD
-        Route::post('/login', [AuthController::class, 'login']);
-=======
         Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
 
->>>>>>> dev
         Route::middleware('auth:sanctum')->group(function () {
             Route::post('/logout', [AuthController::class, 'logout']);
             Route::get('/me', [AuthController::class, 'me']);
         });
-<<<<<<< HEAD
-=======
     });
 
     Route::prefix('archives')->group(function () {
@@ -57,7 +47,6 @@ Route::prefix('v1')->group(function () {
             Route::patch('/{id}/retention/decide', [ArchiveController::class, 'decideRetention'])->middleware('throttle:10,1');
 
         });
->>>>>>> dev
     });
 
     Route::prefix('events')->middleware('auth:sanctum')->group(function () {

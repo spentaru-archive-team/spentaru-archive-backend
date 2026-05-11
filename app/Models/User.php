@@ -14,11 +14,7 @@ use Laravel\Scout\Searchable;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-<<<<<<< HEAD
-    use HasApiTokens, HasFactory, Notifiable;
-=======
     use HasApiTokens, HasFactory, Notifiable, Searchable;
->>>>>>> dev
 
     /**
      * @var list<string>
