@@ -53,7 +53,7 @@ class DashboardController extends Controller
         $user = $request->user();
         $data = Event::with('user')
             ->whereDoesntHave('archives')
-            ->where('id', $user->id)
+            ->where('user_id', $user->id)
             ->orderByDesc('date')
             ->orderByDesc('created_at')->get();
 
