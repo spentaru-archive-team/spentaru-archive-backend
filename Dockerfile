@@ -39,7 +39,7 @@ RUN npm run build
 # - expose port 8000 directly
 # - no Nginx/PHP-FPM setup needed for local Docker usage
 # ------------------------------------------------------------
-FROM php:8.3-cli
+FROM php:8.5-cli
 
 LABEL maintainer="spentaru-archive"
 
