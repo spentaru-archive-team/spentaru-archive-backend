@@ -10,15 +10,18 @@ return new class extends Migration
     {
         Schema::create('archives', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('event_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('event_id')->nullable()->constrained('events')->nullOnDelete();
             $table->string('title');
-            $table->string('archive_code')->unique();
+            $table->year('year')->nullable();
             $table->text('notes')->nullable();
             $table->foreignId('category_id')->constrained('archive_categories')->restrictOnDelete();
-            $table->foreignId('created_by')->constrained('users')->restrictOnDelete();
-            $table->boolean('has_hardcopy')->default(false);
-            $table->enum('status', ['pending_upload', 'uploaded'])->default('pending_upload');
+            $table->foreignId('subcategory_id')->nullable()->constrained('subcategories')->nullOnDelete();
+            $table->foreignId('uploader')->nullable()->constrained('users')->nullOnDelete();
+
             $table->timestamps();
+
+            $table->index(['category_id', 'subcategory_id']);
+            $table->index('event_id');
         });
     }
 

@@ -13,10 +13,9 @@ class ArchiveFile extends Model
     protected $fillable = [
         'archive_id',
         'file_name',
-        'file_path',
         'file_size',
         'file_type',
-        'file_url',
+        'extraction_status',
     ];
 
     protected function casts(): array

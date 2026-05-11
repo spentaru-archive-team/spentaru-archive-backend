@@ -2,14 +2,20 @@
 
 namespace App\Models;
 
+use Abbasudo\Purity\Traits\Filterable;
+use Abbasudo\Purity\Traits\Sortable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Laravel\Scout\Searchable;
 
 class Event extends Model
 {
-    use HasFactory;
+    use Filterable, HasFactory, Searchable, Sortable {
+        Sortable::getTableColumns insteadof Filterable;
+        Sortable::realName insteadof Filterable;
+    }
 
     protected $fillable = [
         'title',
@@ -17,6 +23,7 @@ class Event extends Model
         'description',
         'date',
         'status',
+        'softfile_status',
     ];
 
     protected function casts(): array
@@ -25,6 +32,14 @@ class Event extends Model
             'date' => 'date',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
+        ];
+    }
+
+    public function toSearchableArray(): array
+    {
+        return [
+            'title' => $this->title,
+            'description' => $this->description,
         ];
     }
 

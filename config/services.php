@@ -35,4 +35,14 @@ return [
         ],
     ],
 
+    'ai_gateway' => [
+        'base_url' => rtrim((string) env('AI_SERVICE_BASE_URL', 'http://localhost:5000'), '/'),
+        'timeout' => (int) env('AI_SERVICE_TIMEOUT', 30),
+    ],
+
+    'ai_tool' => [
+        'access_key' => env('AI_TOOL_ACCESS_KEY'),
+        'header' => env('AI_TOOL_ACCESS_HEADER', 'X-AI-Tool-Key'),
+    ],
+
 ];
