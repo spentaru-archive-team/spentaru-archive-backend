@@ -1,0 +1,165 @@
+name: Laravel CI (dev)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  testing:
+    name: CI PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php:
+          - "8.5"
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: spentaru_ci
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_USER: laravel
+          MYSQL_PASSWORD: secret
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      APP_ENV: testing
+      APP_DEBUG: true
+      APP_URL: http://localhost:8000
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: spentaru_ci
+      DB_USERNAME: laravel
+      DB_PASSWORD: secret
+      CACHE_STORE: redis
+      SESSION_DRIVER: redis
+      SESSION_CONNECTION: default
+      QUEUE_CONNECTION: database
+      REDIS_CLIENT: predis
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      REDIS_CACHE_DB: 1
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: composer:v2
+          extensions: ctype, dom, fileinfo, gd, mbstring, pdo_mysql, pdo_sqlite, redis, sqlite3, xml
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-php-${{ matrix.php }}-composer-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php-${{ matrix.php }}-composer-
+
+      - name: Install PHP dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Prepare application environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Wait for MySQL
+        run: |
+          for i in {1..30}; do
+            mysqladmin ping -h 127.0.0.1 -P 3306 -ularavel -psecret --protocol=tcp && exit 0
+            sleep 2
+          done
+          exit 1
+
+      - name: Wait for Redis
+        run: |
+          for i in {1..30}; do
+            php -r '$fp = @fsockopen("localhost", 6379, $errno, $errstr, 2); if ($fp) { fclose($fp); exit(0); } exit(1);' && exit 0
+            sleep 2
+          done
+          exit 1
+
+      - name: Clear config
+        run: php artisan config:clear
+
+      - name: Run migrations on MySQL
+        run: php artisan migrate --force
+
+      - name: Smoke check MySQL and Redis
+        run: |
+          php artisan tinker --execute="dump(config('database.default')); dump(config('cache.default'));"
+          php artisan tinker --execute="cache()->put('ci:smoke', 'ok', 60); dump(cache()->get('ci:smoke'));"
+
+      - name: Show routes
+        run: php artisan route:list
+
+      - name: Run Pint
+        run: composer lint
+
+      - name: Run test suite
+        run: composer test
+  
+
+  build:
+    needs: testing
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Login to dockerhub
+      uses: docker/login-action@v4
+      with:
+        username: ${{ vars.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Build and push
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: ${{ vars.DOCKERHUB_USERNAME }}/spentaru-archive-backend:latest
+      
+      

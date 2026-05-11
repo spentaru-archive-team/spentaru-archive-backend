@@ -33,11 +33,6 @@ RUN npm run build
 
 # ------------------------------------------------------------
 # Stage 3: Runtime image
-#
-# Beginner-friendly default:
-# - runs Laravel with `php artisan serve`
-# - expose port 8000 directly
-# - no Nginx/PHP-FPM setup needed for local Docker usage
 # ------------------------------------------------------------
 FROM php:8.5-cli
 
