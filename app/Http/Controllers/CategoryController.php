@@ -28,7 +28,7 @@ class CategoryController extends Controller
 
         $categories = ArchiveCategory::search('')
             ->query(function ($query) use ($q) {
-                $query->with('subcategories');
+                $query->with('subcategories')->orderBy('id', 'asc')->get();
 
                 if (filled($q)) {
                     $this->applyCategorySearch($query, $q);
