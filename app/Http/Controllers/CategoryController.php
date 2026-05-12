@@ -3,27 +3,48 @@
 namespace App\Http\Controllers;
 
 use App\Models\ArchiveCategory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class CategoryController extends Controller
 {
-    // PAGINATION DIUBAH JADI BISA DIATUR (all = true/false)
+    private function applyCategorySearch(Builder $query, string $q): void
+    {
+        $escaped = str_replace(['%', '_', '\\'], ['\%', '\_', '\\\\'], $q);
+
+        $query->where(function (Builder $searchQuery) use ($escaped) {
+            $searchQuery->where('archive_categories.name', 'like', "%{$escaped}%")
+                ->orWhere('archive_categories.description', 'like', "%{$escaped}%")
+                ->orWhereHas('subcategories', function (Builder $categoryQuery) use ($escaped) {
+                    $categoryQuery->where('name', 'like', "%{$escaped}%");
+                });
+        });
+    }
+
     public function index(Request $request): JsonResponse
     {
-        $query = ArchiveCategory::with('subcategories');
+        $q = trim((string) $request->query('q', ''));
 
-        // Kalau minta semua data (tanpa pagination)
+        $categories = ArchiveCategory::search('')
+            ->query(function ($query) use ($q) {
+                $query->with('subcategories');
+
+                if (filled($q)) {
+                    $this->applyCategorySearch($query, $q);
+                }
+            });
+
         if ($request->boolean('all')) {
-            $categories = $query->get();
+            $categories = $categories->get();
         } else {
-            $perPage = $request->query('per_page', 10);
-            $categories = $query->paginate($perPage);
+            $perPage = (int) $request->query('per_page', 10);
+            $categories = $categories->paginate($perPage);
         }
 
         return response()->json([
             'status' => 'success',
-            'message' => 'sukses mengambil semua kategori',
+            'message' => 'Sukses mengambil semua kategori',
             'data' => $categories,
         ]);
     }

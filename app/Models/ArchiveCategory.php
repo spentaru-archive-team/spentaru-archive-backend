@@ -5,10 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Laravel\Scout\Searchable;
+use Override;
 
 class ArchiveCategory extends Model
 {
-    use HasFactory;
+    use HasFactory, Searchable;
 
     protected $fillable = [
         'name',
@@ -22,6 +24,14 @@ class ArchiveCategory extends Model
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'has_subcategory' => 'boolean',
+        ];
+    }
+
+    public function toSearchableArray()
+    {
+        return [
+            'name' => $this->name,
+            'description' => $this->description
         ];
     }
 
