@@ -573,6 +573,8 @@ Format:
 Catatan:
 
 - Jika arah sort tidak ditulis, default-nya `asc`.
+- Default list tanpa `sort` memakai urutan `retention_status`: `active`, `ready_for_destruction`, `retained`, lalu `destroyed`, kemudian `created_at:desc`, sebelum pagination.
+- `sort=retention_status` atau `sort=retention_status:asc` memakai urutan status retensi yang sama, lalu `created_at:desc` jika sort `created_at` tidak dikirim eksplisit.
 - Sort relasi hanya mendukung 1 hop dengan format `relation.column:direction`.
 - Nested relation sort seperti `physicalLocation.cabinet.name:asc` tidak didukung oleh implementasi package yang aktif.
 
