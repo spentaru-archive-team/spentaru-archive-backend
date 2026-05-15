@@ -79,7 +79,12 @@ class AiArchiveSearchService
         $aiTimeout = (int) config('services.ai_gateway.timeout', 15);
 
         try {
-            $response = Http::timeout($aiTimeout)->post("{$aiBaseUrl}/api/vector/search", [
+            $http = Http::timeout($aiTimeout);
+            $aiServiceKey = config('services.ai_gateway.api_key', '');
+            if ($aiServiceKey) {
+                $http->withHeader('X-AI-Service-Key', $aiServiceKey);
+            }
+            $response = $http->post("{$aiBaseUrl}/api/vector/search", [
                 'query' => $question,
                 'limit' => $limit,
             ]);

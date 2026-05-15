@@ -21,7 +21,7 @@ class ProductionSeeder extends Seeder
                 'password' => env('PASSWORD', 'password'),
                 'role' => 'admin',
                 'last_login_at' => now()->subHours(2),
-            ]
+            ],
         ];
 
         foreach ($items as $item) {

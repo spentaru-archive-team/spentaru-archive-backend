@@ -82,10 +82,23 @@ class AiGatewayController extends Controller
         }
 
         try {
-            $response = Http::acceptJson()
+            $aiServiceKey = config('services.ai_gateway.api_key', '');
+
+            $http = Http::acceptJson()
                 ->timeout($aiTimeout)
-                ->withHeader('X-Trace-Id', $traceId)
-                ->post("{$aiBaseUrl}/api/chat/ask", $payload);
+                ->withHeader('X-Trace-Id', $traceId);
+
+            if ($aiServiceKey) {
+                $http->withHeader('X-AI-Service-Key', $aiServiceKey);
+            }
+
+            $response = $http->post("{$aiBaseUrl}/api/chat/ask", $payload);
+
+            $status = $response->status();
+
+            if ($status === 429) {
+                $this->handleQuotaExceeded($response, $traceId);
+            }
 
             if ($response->successful()) {
                 $answer = data_get($response->json(), 'data.answer');
@@ -120,6 +133,18 @@ class AiGatewayController extends Controller
         }
     }
 
+    private function handleQuotaExceeded(HttpResponse $response, string $traceId): void
+    {
+        $quotaInfo = data_get($response->json(), 'data.quota_info', '');
+        $retryAfter = $response->header('Retry-After', '60');
+
+        Log::warning('AI service quota exceeded', [
+            'trace_id' => $traceId,
+            'quota_info' => $quotaInfo,
+            'retry_after' => $retryAfter,
+        ]);
+    }
+
     private function passthroughAiResponse(HttpResponse $response, string $fallbackTraceId)
     {
         $traceId = $response->header('X-Trace-Id')
@@ -127,8 +152,19 @@ class AiGatewayController extends Controller
             ?: $fallbackTraceId;
         $contentType = $response->header('Content-Type') ?: 'application/json';
 
-        return response($response->body(), $response->status())
+        $laravelResponse = response($response->body(), $response->status())
             ->header('Content-Type', $contentType)
             ->header('X-Trace-Id', $traceId);
+
+        if ($response->header('Retry-After')) {
+            $laravelResponse->header('Retry-After', $response->header('Retry-After'));
+        }
+
+        if ($response->status() === 429) {
+            $quotaInfo = data_get($response->json(), 'data.quota_info', '');
+            $laravelResponse->header('X-Quota-Info', $quotaInfo);
+        }
+
+        return $laravelResponse;
     }
 }

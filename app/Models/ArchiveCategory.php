@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Laravel\Scout\Searchable;
-use Override;
 
 class ArchiveCategory extends Model
 {
@@ -31,7 +30,7 @@ class ArchiveCategory extends Model
     {
         return [
             'name' => $this->name,
-            'description' => $this->description
+            'description' => $this->description,
         ];
     }
 

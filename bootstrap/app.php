@@ -10,7 +10,9 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Validation\ValidationException;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
@@ -25,6 +27,10 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
+        $middleware->api(prepend: [
+            StartSession::class,
+            ShareErrorsFromSession::class,
+        ]);
         $middleware->append(EnsureFrontendRequestsAreStateful::class);
 
         $middleware->alias([
@@ -75,10 +81,15 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         $exceptions->render(function (ThrottleRequestsException $e, Request $request) {
+            $headers = $e->getHeaders();
+            $retryAfter = (int) ($headers['Retry-After'] ?? 60);
+
             return response()->json([
                 'status' => 'error',
-                'message' => 'Terlalu banyak request',
-            ], 429);
+                'message' => 'Terlalu banyak request. Silakan tunggu beberapa saat.',
+                'quota_info' => 'rate_limited: too_many_requests',
+                'retry_after_seconds' => $retryAfter,
+            ], 429)->header('Retry-After', $retryAfter);
         });
 
         $exceptions->respond(function (Response $response) {

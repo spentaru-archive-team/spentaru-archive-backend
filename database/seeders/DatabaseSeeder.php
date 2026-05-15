@@ -30,7 +30,7 @@ class DatabaseSeeder extends Seeder
             ]);
         } else {
             $this->call([
-                ProductionSeeder::class
+                ProductionSeeder::class,
             ]);
         }
     }

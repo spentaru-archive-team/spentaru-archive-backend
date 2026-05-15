@@ -45,6 +45,36 @@ class AuthController extends Controller
         ]);
     }
 
+    public function tokenLogin(Request $request)
+    {
+        $credentials = $request->validate([
+            'username' => 'required|string|max:120',
+            'password' => 'required|string',
+        ]);
+
+        if (! Auth::attempt($credentials)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Invalid credentials',
+            ], 401);
+        }
+
+        $user = Auth::user();
+        $token = $user->createToken('api-token')->plainTextToken;
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Login successful',
+            'data' => [
+                'token' => $token,
+                'id' => $user->getKey(),
+                'name' => $user->name,
+                'username' => $user->username,
+                'role' => $user->role,
+            ],
+        ]);
+    }
+
     public function logout(Request $request)
     {
         Auth::guard('web')->logout();
