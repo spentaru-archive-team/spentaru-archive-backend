@@ -19,7 +19,7 @@
     "require-dev": {
         "fakerphp/faker": "^1.23",
         "laravel/pail": "^1.2.5",
-        "laravel/pint": "^1.27",
+        "laravel/pint": "^1.29",
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.6",
         "phpunit/phpunit": "^12.5.12"
@@ -37,6 +37,8 @@
         }
     },
     "scripts": {
+        "lint": "pint --test",
+        "testphpunit": "phpunit --testdox",
         "setup": [
             "composer install",
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
