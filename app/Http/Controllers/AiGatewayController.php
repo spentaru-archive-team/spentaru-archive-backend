@@ -97,7 +97,6 @@ class AiGatewayController extends Controller
             $status = $response->status();
 
             if ($status === 429) {
-                $this->handleQuotaExceeded($response, $traceId);
             }
 
             if ($response->successful()) {
@@ -133,18 +132,6 @@ class AiGatewayController extends Controller
         }
     }
 
-    private function handleQuotaExceeded(HttpResponse $response, string $traceId): void
-    {
-        $quotaInfo = data_get($response->json(), 'data.quota_info', '');
-        $retryAfter = $response->header('Retry-After', '60');
-
-        Log::warning('AI service quota exceeded', [
-            'trace_id' => $traceId,
-            'quota_info' => $quotaInfo,
-            'retry_after' => $retryAfter,
-        ]);
-    }
-
     private function passthroughAiResponse(HttpResponse $response, string $fallbackTraceId)
     {
         $traceId = $response->header('X-Trace-Id')
@@ -158,11 +145,6 @@ class AiGatewayController extends Controller
 
         if ($response->header('Retry-After')) {
             $laravelResponse->header('Retry-After', $response->header('Retry-After'));
-        }
-
-        if ($response->status() === 429) {
-            $quotaInfo = data_get($response->json(), 'data.quota_info', '');
-            $laravelResponse->header('X-Quota-Info', $quotaInfo);
         }
 
         return $laravelResponse;
