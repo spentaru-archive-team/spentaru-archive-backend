@@ -403,7 +403,7 @@ class ArchiveController extends Controller
                 $http->withHeader('X-AI-Service-Key', $aiServiceKey);
             }
             $response = $http->attach(
-                'file', $fileContent, $fileName
+                'file', file_get_contents($file->getRealPath()), $filename
             )->post("{$aiBaseUrl}/api/extract/text", [
                 'archive_id' => (string) $archive->id,
                 'title' => $archive->title ?? '',
