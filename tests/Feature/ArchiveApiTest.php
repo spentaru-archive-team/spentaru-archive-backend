@@ -188,6 +188,110 @@ class ArchiveApiTest extends TestCase
         );
     }
 
+    public function test_index_orders_retention_status_before_pagination(): void
+    {
+        $actor = $this->createUser([
+            'role' => 'admin',
+            'username' => 'archive_retention_order_actor',
+        ]);
+        Sanctum::actingAs($actor);
+
+        $uploader = $this->createUser([
+            'username' => 'archive_retention_order_uploader',
+        ]);
+        $eventOwner = $this->createUser([
+            'username' => 'archive_retention_order_event_owner',
+        ]);
+        $category = ArchiveCategory::create([
+            'name' => 'Retensi',
+            'description' => 'Kategori retensi',
+            'has_subcategory' => false,
+        ]);
+        $subcategory = Subcategory::create([
+            'category_id' => $category->id,
+            'name' => 'Sub Retensi',
+        ]);
+        $event = Event::create([
+            'title' => 'Event Retensi',
+            'user_id' => $eventOwner->id,
+            'description' => 'Event test retensi',
+            'date' => now()->toDateString(),
+            'status' => 'ongoing',
+        ]);
+        $baseModels = [
+            'uploader_model' => $uploader,
+            'event_user_model' => $eventOwner,
+            'category_model' => $category,
+            'subcategory_model' => $subcategory,
+            'event_model' => $event,
+        ];
+
+        foreach (range(1, 10) as $index) {
+            $destroyed = $this->createArchiveRecord(array_merge($baseModels, [
+                'title' => sprintf('A Destroyed %02d', $index),
+                'retention_status' => 'destroyed',
+            ]));
+
+            $destroyed->forceFill([
+                'created_at' => now()->subMinutes($index),
+                'updated_at' => now()->subMinutes($index),
+            ])->save();
+        }
+
+        $olderActive = $this->createArchiveRecord(array_merge($baseModels, [
+            'title' => 'Z Active Older',
+            'retention_status' => 'active',
+        ]));
+        $olderActive->forceFill([
+            'created_at' => now()->subDays(2),
+            'updated_at' => now()->subDays(2),
+        ])->save();
+
+        $newerActive = $this->createArchiveRecord(array_merge($baseModels, [
+            'title' => 'Z Active Newer',
+            'retention_status' => 'active',
+        ]));
+        $newerActive->forceFill([
+            'created_at' => now()->subDay(),
+            'updated_at' => now()->subDay(),
+        ])->save();
+
+        $ready = $this->createArchiveRecord(array_merge($baseModels, [
+            'title' => 'Z Ready',
+            'retention_status' => 'ready_for_destruction',
+        ]));
+        $ready->forceFill([
+            'created_at' => now()->subDays(3),
+            'updated_at' => now()->subDays(3),
+        ])->save();
+
+        $retained = $this->createArchiveRecord(array_merge($baseModels, [
+            'title' => 'Z Retained',
+            'retention_status' => 'retained',
+        ]));
+        $retained->forceFill([
+            'created_at' => now()->subDays(4),
+            'updated_at' => now()->subDays(4),
+        ])->save();
+
+        foreach (['/api/v1/archives', '/api/v1/archives?sort=retention_status:asc'] as $url) {
+            $response = $this->getJson($url);
+
+            $response->assertOk()
+                ->assertJsonCount(10, 'data.data');
+
+            $this->assertSame(
+                [$newerActive->id, $olderActive->id, $ready->id, $retained->id],
+                collect($response->json('data.data'))->take(4)->pluck('id')->all()
+            );
+
+            $this->assertSame(
+                ['active', 'active', 'ready_for_destruction', 'retained'],
+                collect($response->json('data.data'))->take(4)->pluck('retention_status')->all()
+            );
+        }
+    }
+
     public function test_destroy_archive_deletes_qdrant_vector_from_ocr_text(): void
     {
         $actor = $this->createUser([

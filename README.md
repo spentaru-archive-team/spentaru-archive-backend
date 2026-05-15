@@ -49,6 +49,22 @@ php artisan storage:link
 php artisan serve
 ```
 
+**⚠️ AI Chat Search — Wajib Multi-Worker**
+
+Fitur AI chat dengan `use_search: true` membutuhkan callback dari AI Service ke Laravel (`POST /api/v1/ai/tools/archives/search`). `php artisan serve` (single-thread) menyebabkan deadlock karena Laravel menunggu AI selesai sementara AI menunggu Laravel memproses callback.
+
+Gunakan PHP built-in server langsung dengan multi-worker:
+
+```bash
+PHP_CLI_SERVER_WORKERS=4 php -S localhost:8000 -t public
+```
+
+Verifikasi worker berjalan (akan terlihat 5 proses `php` listening di port 8000):
+
+```bash
+lsof -i:8000
+```
+
 Jika ingin fitur search berbasis Scout sinkron untuk driver non-`database`, import index setelah migrate:
 
 ```bash

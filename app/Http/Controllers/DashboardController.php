@@ -21,6 +21,18 @@ class DashboardController extends Controller
         // total arsip
         $archive_total = Archive::count();
 
+        // total arsip aktif
+        $archive_active_total = Archive::where('retention_status', 'active')->count();
+
+        // total arsip yang siap untuk dihancurkan
+        $archive_ready_total = Archive::where('retention_status', 'ready_for_destruction')->count();
+
+        // total arsip yang ditahan
+        $archive_retained_total = Archive::where('retention_status', 'retained')->count();
+
+        // total arsip yang sudah dihancurkan
+        $archive_destroyed_total = Archive::where('retention_status', 'destroyed')->count();
+
         // total kategori arsip
         $archive_category_total = ArchiveCategory::count();
 
@@ -34,7 +46,11 @@ class DashboardController extends Controller
         $user_total = User::count();
 
         $total = [
-            'archive_total' => $archive_total,
+            'total' => $archive_total,
+            'active' => $archive_active_total,
+            'ready' => $archive_ready_total,
+            'retained' => $archive_retained_total,
+            'destroyed' => $archive_destroyed_total,
             'archive_category_total' => $archive_category_total,
             'cabinet_total' => $cabinet_total,
             'archive_subcategory_total' => $archive_subcategory_total,

@@ -6,6 +6,7 @@ use App\Http\Requests\DecideRetentionRequest;
 use App\Http\Requests\StoreArchiveRequest;
 use App\Http\Requests\UpdateArchiveRequest;
 use App\Models\Archive;
+use App\Models\ArchiveCategory;
 use App\Models\ArchiveFile;
 use App\Models\Subcategory;
 use App\Services\ArchiveStorageService;
@@ -86,7 +87,12 @@ class ArchiveController extends Controller
         $aiTimeout = (int) config('services.ai_gateway.timeout', 15);
 
         try {
-            Http::timeout($aiTimeout)->delete("{$aiBaseUrl}/api/vector/{$vectorId}");
+            $http = Http::timeout($aiTimeout);
+            $aiServiceKey = config('services.ai_gateway.api_key', '');
+            if ($aiServiceKey) {
+                $http->withHeader('X-AI-Service-Key', $aiServiceKey);
+            }
+            $http->delete("{$aiBaseUrl}/api/vector/{$vectorId}");
         } catch (\Exception $e) {
             Log::warning('Failed to delete vector from Qdrant', [
                 'vector_id' => $vectorId,
@@ -172,13 +178,13 @@ class ArchiveController extends Controller
         return false;
     }
 
-    private function hasTitleSort(array $sorts): bool
+    private function hasCreatedAtSort(array $sorts): bool
     {
         foreach ($sorts as $sort) {
             [$column] = array_pad(explode(':', $sort, 2), 2, 'asc');
             $normalizedColumn = trim($column);
 
-            if (in_array($normalizedColumn, ['title', 'archives.title'], true)) {
+            if (in_array($normalizedColumn, ['created_at', 'archives.created_at'], true)) {
                 return true;
             }
         }
@@ -189,8 +195,8 @@ class ArchiveController extends Controller
     private function applyRetentionStatusOrder(Builder $query, string $direction = 'asc'): void
     {
         $cases = $direction === 'desc'
-            ? "WHEN 'destroyed' THEN 1 WHEN 'ready_for_destruction' THEN 2 WHEN 'retained' THEN 3 WHEN 'active' THEN 4 ELSE 5"
-            : "WHEN 'active' THEN 1 WHEN 'retained' THEN 2 WHEN 'ready_for_destruction' THEN 3 WHEN 'destroyed' THEN 4 ELSE 5";
+            ? "WHEN 'destroyed' THEN 1 WHEN 'retained' THEN 2 WHEN 'ready_for_destruction' THEN 3 WHEN 'active' THEN 4 ELSE 5"
+            : "WHEN 'active' THEN 1 WHEN 'ready_for_destruction' THEN 2 WHEN 'retained' THEN 3 WHEN 'destroyed' THEN 4 ELSE 5";
 
         $query->orderByRaw("CASE archives.retention_status {$cases} END");
     }
@@ -238,7 +244,7 @@ class ArchiveController extends Controller
         $joinedCategory = false;
         $appliedSort = false;
         $appliedRetentionStatusSort = false;
-        $hasTitleSort = $this->hasTitleSort($sorts);
+        $hasCreatedAtSort = $this->hasCreatedAtSort($sorts);
 
         foreach ($sorts as $sort) {
             [$column, $direction] = array_pad(explode(':', $sort, 2), 2, 'asc');
@@ -276,14 +282,14 @@ class ArchiveController extends Controller
 
         if (! $appliedSort) {
             $this->applyRetentionStatusOrder($query);
-            $query->orderBy('archives.title', 'asc');
+            $query->orderBy('archives.created_at', 'desc');
             $query->orderBy('archives.id', 'desc');
 
             return;
         }
 
-        if ($appliedRetentionStatusSort && ! $hasTitleSort) {
-            $query->orderBy('archives.title', 'asc');
+        if ($appliedRetentionStatusSort && ! $hasCreatedAtSort) {
+            $query->orderBy('archives.created_at', 'desc');
             $query->orderBy('archives.id', 'desc');
         }
     }
@@ -371,53 +377,62 @@ class ArchiveController extends Controller
 
         $year = intval($req_archive['year']);
 
+        $payload = array_merge($req_archive, [
+            'uploader' => Auth::id(),
+            'retention_due_date' => $year ? now()->setYear($year)->startOfYear()->addYears(10)->toDateString() : null,
+            'retention_status' => 'active',
+        ]);
+
         try {
-            // OCR
+            $archive = DB::transaction(function () use ($payload, $req_archive) {
+                $archive = Archive::create($payload);
+                $this->storageService->assignLocation($archive, $req_archive['category_id'], $req_archive['subcategory_id'] ?? null);
+
+                return $archive;
+            });
+
+            $cat = ArchiveCategory::find($req_archive['category_id']);
+            $sub = $req_archive['subcategory_id'] ? Subcategory::find($req_archive['subcategory_id']) : null;
+
             $aiBaseUrl = rtrim((string) config('services.ai_gateway.base_url', 'http://localhost:5000'), '/');
             $aiTimeout = (int) config('services.ai_gateway.timeout', 15);
 
-            $response = Http::timeout($aiTimeout)->attach(
-                'file',
-                file_get_contents($file->getRealPath()),
-                $file->getClientOriginalName()
-            )->post("{$aiBaseUrl}/api/extract/text");
-            // Ambil response jadi variable
-            $ocr_result = $response->json();
-            $ocr = $ocr_result['data']['text'];
-            $vector_id = $ocr_result['data']['vector_id'];
-            // OCR end
-
-            $payload = array_merge($req_archive, [
-                'uploader' => Auth::id(),
-                'retention_due_date' => $year ? now()->setYear($year)->startOfYear()->addYears(10)->toDateString() : null,
-                'retention_status' => 'active',
+            $http = Http::timeout($aiTimeout)->asMultipart();
+            $aiServiceKey = config('services.ai_gateway.api_key', '');
+            if ($aiServiceKey) {
+                $http->withHeader('X-AI-Service-Key', $aiServiceKey);
+            }
+            $response = $http->attach(
+                'file', $fileContent, $fileName
+            )->post("{$aiBaseUrl}/api/extract/text", [
+                'archive_id' => (string) $archive->id,
+                'title' => $archive->title ?? '',
+                'year' => (string) ($archive->year ?? ''),
+                'category' => $cat?->name ?? '',
+                'subcategory' => $sub?->name ?? '',
             ]);
 
-            $payload_ocr = [
-                'extracted_text' => $ocr,
-                'vector_id' => $vector_id,
-            ];
+            $ocr_result = $response->json();
+            $ocr = $ocr_result['data']['text'] ?? '';
+            $vector_id = $ocr_result['data']['vector_id'] ?? null;
 
-            $payload_archive = [
+            $payload_file = [
                 'file_name' => $filename,
                 'file_size' => $file->getSize(),
                 'file_type' => strtolower($file->getClientOriginalExtension()),
                 'extraction_status' => 'done',
             ];
 
-            $archive = DB::transaction(function () use ($req_archive, $payload, $payload_ocr, $payload_archive) {
-                $archive = Archive::create($payload);
+            $payload_ocr = [
+                'extracted_text' => $ocr,
+                'vector_id' => $vector_id,
+            ];
 
-                $archive->files()->create($payload_archive);
-
-                $archive->ocrText()->create($payload_ocr);
-
-                $this->storageService->assignLocation($archive, $req_archive['category_id'], $req_archive['subcategory_id'] ?? null);
-
-                return $archive->load(['files', 'physicalLocation.cabinet', 'physicalLocation.rack']);
-            });
+            $archive->files()->create($payload_file);
+            $archive->ocrText()->create($payload_ocr);
         } catch (\Throwable $th) {
             Storage::disk(self::ARCHIVE_FILE_DISK)->delete($storedPath);
+            $archive?->delete();
 
             throw $th;
         }
@@ -506,7 +521,12 @@ class ArchiveController extends Controller
                 $aiBaseUrl = rtrim((string) config('services.ai_gateway.base_url', 'http://localhost:5000'), '/');
                 $aiTimeout = (int) config('services.ai_gateway.timeout', 15);
 
-                $response = Http::timeout($aiTimeout)->attach(
+                $http = Http::timeout($aiTimeout);
+                $aiServiceKey = config('services.ai_gateway.api_key', '');
+                if ($aiServiceKey) {
+                    $http->withHeader('X-AI-Service-Key', $aiServiceKey);
+                }
+                $response = $http->attach(
                     'file',
                     file_get_contents($file->getRealPath()),
                     $file->getClientOriginalName()
