@@ -26,6 +26,10 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::prefix('archives')->group(function () {
+        Route::middleware('ai.tool')->group(function () {
+            Route::get('/internal', [ArchiveController::class, 'index'])->middleware('throttle:60,1');
+        });
+
         Route::middleware('auth:sanctum')->group(function () {
             Route::get('/', [ArchiveController::class, 'index'])->middleware('throttle:60,1');
             Route::post('/', [ArchiveController::class, 'store'])->middleware('throttle:30,1');
