@@ -23,10 +23,16 @@ class DatabaseSeeder extends Seeder
                 ArchiveSeeder::class,
                 ArchiveFileSeeder::class,
                 ArchivePhysicalLocationSeeder::class,
+                ArchiveCategorySeeder::class,
+                SubcategorySeeder::class,
+                CabinetSeeder::class,
             ]);
         } else {
             $this->call([
                 ProductionUserSeeder::class,
+                RackSeeder::class,
+                ArchiveStorageRuleSeeder::class,
+                ArchivePhysicalLocationSeeder::class,
                 ArchiveCategorySeeder::class,
                 SubcategorySeeder::class,
                 CabinetSeeder::class,
