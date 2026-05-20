@@ -117,6 +117,13 @@ class UserController extends Controller
      */
     public function destroy(string $id)
     {
+        if ($id == Auth::id()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Error: Anda tidak diizinkan menghapus akun Anda sendiri yang sedang aktif.',
+            ], 403);
+        }
+        
         $user = User::findOrFail($id);
         $username = $user->username;
         $user->delete();

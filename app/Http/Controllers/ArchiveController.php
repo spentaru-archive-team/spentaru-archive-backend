@@ -103,12 +103,19 @@ class ArchiveController extends Controller
 
     private function validateSubcategorySelection(int $categoryId, ?int $subcategoryId): ?JsonResponse
     {
-        $categoryHasSubcategories = Subcategory::where('category_id', $categoryId)->exists();
+        $category = ArchiveCategory::find($categoryId);
 
-        if ($categoryHasSubcategories && $subcategoryId === null) {
+        if ($category?->has_subcategory && $subcategoryId === null) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Subkategori wajib diisi karena kategori sudah mempunyai sub kategori',
+                'message' => 'Subkategori wajib diisi karena kategori ini mempunyai sub kategori',
+            ], 422);
+        }
+
+        if ($category && ! $category->has_subcategory && $subcategoryId !== null) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Subkategori harus kosong karena kategori ini tidak mempunyai sub kategori',
             ], 422);
         }
 
@@ -392,7 +399,7 @@ class ArchiveController extends Controller
             });
 
             $cat = ArchiveCategory::find($req_archive['category_id']);
-            $sub = $req_archive['subcategory_id'] ? Subcategory::find($req_archive['subcategory_id']) : null;
+            $sub = isset($req_archive['subcategory_id']) ? Subcategory::find($req_archive['subcategory_id']) : null;
 
             $aiBaseUrl = rtrim((string) config('services.ai_gateway.base_url', 'http://localhost:5000'), '/');
             $aiTimeout = (int) config('services.ai_gateway.timeout', 15);
@@ -402,14 +409,32 @@ class ArchiveController extends Controller
             if ($aiServiceKey) {
                 $http->withHeader('X-AI-Service-Key', $aiServiceKey);
             }
-            $response = $http->attach(
-                'file', file_get_contents($file->getRealPath()), $filename
-            )->post("{$aiBaseUrl}/api/extract/text", [
-                'archive_id' => (string) $archive->id,
-                'title' => $archive->title ?? '',
-                'year' => (string) ($archive->year ?? ''),
-                'category' => $cat?->name ?? '',
-                'subcategory' => $sub?->name ?? '',
+            $response = $http->post("{$aiBaseUrl}/api/extract/text", [
+                [
+                    'name' => 'file',
+                    'contents' => file_get_contents($file->getRealPath()),
+                    'filename' => $filename,
+                ],
+                [
+                    'name' => 'archive_id',
+                    'contents' => (string) $archive->id,
+                ],
+                [
+                    'name' => 'title',
+                    'contents' => $archive->title ?? '',
+                ],
+                [
+                    'name' => 'year',
+                    'contents' => (string) ($archive->year ?? ''),
+                ],
+                [
+                    'name' => 'category',
+                    'contents' => $cat?->name ?? '',
+                ],
+                [
+                    'name' => 'subcategory',
+                    'contents' => $sub?->name ?? '',
+                ],
             ]);
 
             $ocr_result = $response->json();
@@ -521,20 +546,22 @@ class ArchiveController extends Controller
                 $aiBaseUrl = rtrim((string) config('services.ai_gateway.base_url', 'http://localhost:5000'), '/');
                 $aiTimeout = (int) config('services.ai_gateway.timeout', 15);
 
-                $http = Http::timeout($aiTimeout);
+                $http = Http::timeout($aiTimeout)->asMultipart();
                 $aiServiceKey = config('services.ai_gateway.api_key', '');
                 if ($aiServiceKey) {
                     $http->withHeader('X-AI-Service-Key', $aiServiceKey);
                 }
-                $response = $http->attach(
-                    'file',
-                    file_get_contents($file->getRealPath()),
-                    $file->getClientOriginalName()
-                )->post("{$aiBaseUrl}/api/extract/text");
+                $response = $http->post("{$aiBaseUrl}/api/extract/text", [
+                    [
+                        'name' => 'file',
+                        'contents' => file_get_contents($file->getRealPath()),
+                        'filename' => $file->getClientOriginalName(),
+                    ],
+                ]);
                 // Ambil response jadi variable
                 $ocr_result = $response->json();
-                $ocr = $ocr_result['data']['text'];
-                $vector_id = $ocr_result['data']['vector_id'];
+                $ocr = $ocr_result['data']['text'] ?? '';
+                $vector_id = $ocr_result['data']['vector_id'] ?? null;
 
                 $ocrPayload = [
                     'extracted_text' => $ocr,

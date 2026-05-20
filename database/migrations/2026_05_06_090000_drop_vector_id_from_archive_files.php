@@ -22,7 +22,7 @@ return new class extends Migration
                                 'vector_id' => $row->vector_id,
                             ]);
                     }
-                });
+                }, 'archive_id');
 
             Schema::table('archive_files', function (Blueprint $table) {
                 $table->dropColumn('vector_id');
@@ -49,7 +49,7 @@ return new class extends Migration
                                 'vector_id' => $row->vector_id,
                             ]);
                     }
-                });
+                }, 'archive_id');
         }
     }
 };
