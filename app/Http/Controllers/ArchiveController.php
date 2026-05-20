@@ -17,7 +17,6 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Support\Str as SupportStr;
@@ -75,30 +74,6 @@ class ArchiveController extends Controller
         }
 
         return $path;
-    }
-
-    private function deleteVectorFromQdrant(?string $vectorId): void
-    {
-        if (! $vectorId) {
-            return;
-        }
-
-        $aiBaseUrl = rtrim((string) config('services.ai_gateway.base_url', 'http://localhost:5000'), '/');
-        $aiTimeout = (int) config('services.ai_gateway.timeout', 15);
-
-        try {
-            $http = Http::timeout($aiTimeout);
-            $aiServiceKey = config('services.ai_gateway.api_key', '');
-            if ($aiServiceKey) {
-                $http->withHeader('X-AI-Service-Key', $aiServiceKey);
-            }
-            $http->delete("{$aiBaseUrl}/api/vector/{$vectorId}");
-        } catch (\Exception $e) {
-            Log::warning('Failed to delete vector from Qdrant', [
-                'vector_id' => $vectorId,
-                'error' => $e->getMessage(),
-            ]);
-        }
     }
 
     private function validateSubcategorySelection(int $categoryId, ?int $subcategoryId): ?JsonResponse
@@ -437,10 +412,6 @@ class ArchiveController extends Controller
                 ],
             ]);
 
-            $ocr_result = $response->json();
-            $ocr = $ocr_result['data']['text'] ?? '';
-            $vector_id = $ocr_result['data']['vector_id'] ?? null;
-
             $payload_file = [
                 'file_name' => $filename,
                 'file_size' => $file->getSize(),
@@ -448,13 +419,7 @@ class ArchiveController extends Controller
                 'extraction_status' => 'done',
             ];
 
-            $payload_ocr = [
-                'extracted_text' => $ocr,
-                'vector_id' => $vector_id,
-            ];
-
             $archive->files()->create($payload_file);
-            $archive->ocrText()->create($payload_ocr);
         } catch (\Throwable $th) {
             Storage::disk(self::ARCHIVE_FILE_DISK)->delete($storedPath);
             $archive?->delete();
@@ -491,10 +456,9 @@ class ArchiveController extends Controller
      */
     public function update(UpdateArchiveRequest $request, string $id)
     {
-        $archive = Archive::with(['files', 'ocrText', 'physicalLocation.rack'])->findOrFail($id);
+        $archive = Archive::with(['files', 'physicalLocation.rack'])->findOrFail($id);
         $validated = $request->safe()->all();
         $oldFile = $archive->files;
-        $oldVectorId = $archive->ocrText?->vector_id;
 
         $archiveInput = collect($validated)
             ->except(['file'])
@@ -534,7 +498,6 @@ class ArchiveController extends Controller
         $storedPath = null;
         $filename = null;
         $file = null;
-        $ocrPayload = null;
 
         try {
             if ($request->hasFile('file')) {
@@ -542,7 +505,7 @@ class ArchiveController extends Controller
                 $filename = $this->makeArchiveFilename($file);
                 $storedPath = $this->storeArchiveFile($file, $filename);
 
-                // OCR
+                // Kirim file ke AI service; OCR text/vector disimpan di service AI/Qdrant.
                 $aiBaseUrl = rtrim((string) config('services.ai_gateway.base_url', 'http://localhost:5000'), '/');
                 $aiTimeout = (int) config('services.ai_gateway.timeout', 15);
 
@@ -551,26 +514,16 @@ class ArchiveController extends Controller
                 if ($aiServiceKey) {
                     $http->withHeader('X-AI-Service-Key', $aiServiceKey);
                 }
-                $response = $http->post("{$aiBaseUrl}/api/extract/text", [
+                $http->post("{$aiBaseUrl}/api/extract/text", [
                     [
                         'name' => 'file',
                         'contents' => file_get_contents($file->getRealPath()),
                         'filename' => $file->getClientOriginalName(),
                     ],
                 ]);
-                // Ambil response jadi variable
-                $ocr_result = $response->json();
-                $ocr = $ocr_result['data']['text'] ?? '';
-                $vector_id = $ocr_result['data']['vector_id'] ?? null;
-
-                $ocrPayload = [
-                    'extracted_text' => $ocr,
-                    'vector_id' => $vector_id,
-                ];
-                // OCR end
             }
 
-            DB::transaction(function () use ($archive, $archiveData, $file, $filename, $needsRelocation, $oldRack, $ocrPayload) {
+            DB::transaction(function () use ($archive, $archiveData, $file, $filename, $needsRelocation, $oldRack) {
                 if ($archiveData !== []) {
                     $archive->update($archiveData);
                 }
@@ -583,10 +536,6 @@ class ArchiveController extends Controller
                         'file_type' => strtolower($file->getClientOriginalExtension()),
                         'extraction_status' => 'done',
                     ]);
-                    $archive->ocrText()->updateOrCreate(
-                        ['archive_id' => $archive->id],
-                        $ocrPayload ?? []
-                    );
                 }
 
                 if ($needsRelocation) {
@@ -609,13 +558,12 @@ class ArchiveController extends Controller
 
         if ($file) {
             $this->deleteArchiveFile($oldFile);
-            $this->deleteVectorFromQdrant($oldVectorId);
         }
 
         return response()->json([
             'status' => 'success',
             'message' => 'sukses memperbarui archive',
-            'data' => $archive->fresh(['event', 'category', 'subcategory', 'files', 'physicalLocation.cabinet', 'physicalLocation.rack', 'ocrText']),
+            'data' => $archive->fresh(['event', 'category', 'subcategory', 'files', 'physicalLocation.cabinet', 'physicalLocation.rack']),
         ]);
     }
 
@@ -624,13 +572,10 @@ class ArchiveController extends Controller
      */
     public function destroy(string $id)
     {
-        $archive = Archive::with(['files', 'ocrText', 'physicalLocation.rack'])->findOrFail($id);
+        $archive = Archive::with(['files', 'physicalLocation.rack'])->findOrFail($id);
         $file = $archive->files;
-        $vectorId = $archive->ocrText?->vector_id;
 
-        DB::transaction(function () use ($archive, $vectorId) {
-            $this->deleteVectorFromQdrant($vectorId);
-
+        DB::transaction(function () use ($archive) {
             if ($archive->physicalLocation?->rack) {
                 $archive->physicalLocation->rack->decrement('used_capacity');
             }
@@ -661,18 +606,14 @@ class ArchiveController extends Controller
 
     public function decideRetention(DecideRetentionRequest $request, string $id)
     {
-        $archive = Archive::with(['files', 'ocrText', 'physicalLocation.rack'])->findOrFail($id);
+        $archive = Archive::with(['files', 'physicalLocation.rack'])->findOrFail($id);
 
         $fileToDelete = null;
-        $vectorIdToDelete = null;
         $year = now()->year;
 
-        DB::transaction(function () use ($archive, $request, &$fileToDelete, &$vectorIdToDelete, $year) {
+        DB::transaction(function () use ($archive, $request, &$fileToDelete, $year) {
             if ($request->retention_status === 'destroyed') {
                 $fileToDelete = $archive->files;
-                $vectorIdToDelete = $archive->ocrText?->vector_id;
-
-                $this->deleteVectorFromQdrant($vectorIdToDelete);
 
                 if ($archive->files) {
                     $archive->files()->delete();

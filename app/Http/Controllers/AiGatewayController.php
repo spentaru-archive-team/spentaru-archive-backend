@@ -3,48 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\AskChatRequest;
-use App\Http\Requests\SearchArchivesToolRequest;
-use App\Services\AiArchiveSearchService;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response as HttpResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
-use Illuminate\Support\Str;
 
 class AiGatewayController extends Controller
 {
     private const CHAT_HISTORY_LIMIT = 100;
 
     private const CHAT_REQUEST_LIMIT = 50;
-
-    public function __construct(
-        private AiArchiveSearchService $archiveSearchService
-    ) {}
-
-    private function resolveTraceId(Request $request): string
-    {
-        return (string) ($request->header('X-Trace-Id') ?: Str::uuid());
-    }
-
-    public function searchArchivesTool(SearchArchivesToolRequest $request)
-    {
-        $validated = $request->validated();
-        $traceId = $this->resolveTraceId($request);
-        $result = $this->archiveSearchService->search(
-            $validated['question'],
-            $validated['limit'] ?? null,
-        );
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'sukses mencari arsip untuk AI tool',
-            'data' => $result,
-            'trace_id' => $traceId,
-        ])->header('X-Trace-Id', $traceId);
-    }
 
     public function askChat(AskChatRequest $request)
     {

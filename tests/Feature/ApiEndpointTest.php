@@ -9,7 +9,6 @@ use App\Models\ArchivePhysicalLocation;
 use App\Models\ArchiveStorageRule;
 use App\Models\Cabinet;
 use App\Models\Event;
-use App\Models\OcrText;
 use App\Models\Rack;
 use App\Models\Subcategory;
 use App\Models\User;
@@ -560,7 +559,6 @@ class ApiEndpointTest extends TestCase
         Http::fake(fn () => Http::response([
             'data' => [
                 'text' => 'hasil ocr',
-                'vector_id' => '11111111-1111-1111-1111-111111111111',
             ],
         ], 200));
 
@@ -614,17 +612,11 @@ class ApiEndpointTest extends TestCase
         Http::fake(fn () => Http::response([
             'data' => [
                 'text' => 'ocr update',
-                'vector_id' => '22222222-2222-2222-2222-222222222222',
             ],
         ], 200));
 
         $admin = $this->actingAsRole('admin');
         $archive = $this->archiveWithFile(['uploader_model' => $admin]);
-        OcrText::create([
-            'archive_id' => $archive->id,
-            'extracted_text' => 'teks lama',
-            'vector_id' => '11111111-1111-1111-1111-111111111111',
-        ]);
 
         $this->getJson('/api/v1/archives?all=1&q=Arsip')
             ->assertOk()
@@ -882,30 +874,6 @@ class ApiEndpointTest extends TestCase
             ->assertHeader('X-Trace-Id', 'trace-123')
             ->assertJsonPath('data.answer', 'jawaban ai');
 
-        $this->postJson('/api/v1/ai/tools/archives/search', [
-            'question' => 'arsip',
-        ])->assertStatus(401)
-            ->assertJsonPath('message', 'Unauthorized AI tool access');
-
-        Http::fake([
-            '*/api/vector/search' => Http::response(['data' => []], 200),
-        ]);
-
-        $archive = $this->archive(['title' => 'Arsip AI Keyword']);
-        OcrText::create([
-            'archive_id' => $archive->id,
-            'extracted_text' => 'keyword rahasia',
-            'vector_id' => '33333333-3333-3333-3333-333333333333',
-        ]);
-
-        $this->postJson('/api/v1/ai/tools/archives/search', [
-            'question' => 'keyword rahasia',
-            'limit' => 3,
-        ], ['X-AI-Tool-Key' => 'tool-secret', 'X-Trace-Id' => 'trace-tool'])
-            ->assertOk()
-            ->assertHeader('X-Trace-Id', 'trace-tool')
-            ->assertJsonPath('status', 'success')
-            ->assertJsonPath('data.limit', 3);
     }
 
     public function test_global_json_errors_cover_not_found_method_not_allowed_and_validation_shape(): void

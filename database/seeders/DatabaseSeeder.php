@@ -23,7 +23,6 @@ class DatabaseSeeder extends Seeder
                 ArchiveSeeder::class,
                 ArchiveFileSeeder::class,
                 ArchivePhysicalLocationSeeder::class,
-                OcrTextSeeder::class,
             ]);
         } else {
             $this->call([

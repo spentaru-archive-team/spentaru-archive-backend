@@ -72,7 +72,7 @@ Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
 - Endpoint list `users`, `archives`, `events`, dan `archives/physical-locations` sudah memakai query `q` untuk search berbasis Laravel Scout.
 - Endpoint list `archives`, `events`, dan `archives/physical-locations` juga mendukung filter dan sort dinamis via query string.
 - Default konfigurasi Scout saat ini memakai driver `database` dari `config/scout.php`.
-- Archive bisa punya `physical_location` dan `ocr_text`.
+- Archive bisa punya `physical_location`; OCR text/vector disimpan di service AI Python/Qdrant, bukan di Laravel.
 - Event punya `softfile_status` (`uploaded` / `pending_upload`) yang disinkronkan dari keberadaan `archive_files` pada archive terkait.
 - Archive auto-assign physical location via `ArchiveStorageService` saat create archive bila rule/rak tersedia.
 - Ada endpoint admin untuk CRUD `archive_storage_rules` sebagai rule penempatan arsip ke lemari.
@@ -81,7 +81,6 @@ Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
 - Endpoint create/update `racks` menerima `used_capacity` dan menjaga validasi kapasitas tetap konsisten.
 - Archive punya workflow retensi: `retention_due_date`, `retention_status`, `retention_decided_at`, `retention_decided_by`, `retention_note`.
 - Ada endpoint arsip tanpa lokasi fisik, arsip siap pemusnahan, dan keputusan retensi arsip.
-- Ada AI tool endpoint internal `POST /api/v1/ai/tools/archives/search` yang diakses service Python via shared secret header dan menerima `question` bebas.
 - Ada AI chat proxy terautentikasi `POST /api/v1/chat/ask` dengan alias legacy `POST /api/v1/ai/chat/ask`; endpoint ini menyimpan riwayat chat per user di Redis, meneruskan response AI service apa adanya, dibatasi `throttle:30,1`, dan frontend wajib mengirim header `X-Trace-Id`.
 - Dashboard punya endpoint daftar guru dengan event yang belum memiliki archive.
 - Global JSON exception handling ada di `bootstrap/app.php` untuk 401, 403, 405, 422, 429, dan 500.
@@ -91,9 +90,7 @@ Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
 - Search query archive sudah escape karakter wildcard SQL (`%`, `_`, `\`) untuk mencegah abuse.
 - Perubahan role user di-log dan hanya bisa dilakukan oleh admin (bukan self-update).
 - Komunikasi AI service OCR memakai konfigurasi HTTP via `config/services.ai_gateway` (default `http://localhost:5000` untuk development, production wajib set env `AI_SERVICE_BASE_URL` ke HTTPS).
-- Delete archive dan retention status `destroyed` menghapus vector dari Qdrant via AI service endpoint `DELETE /api/vector/{vector_id}`.
-- Archive `ocr_texts` menyimpan `vector_id`, sedangkan `archive_files` hanya menyimpan metadata file dan `extraction_status`.
-- AI search endpoint `/ai/tools/archives/search` memakai hybrid search: keyword (MySQL LIKE) + vector (Qdrant via AI service) dengan bobot 60% vector, 40% keyword, bonus 1.2x jika muncul di kedua sumber.
+- Laravel hanya meneruskan chat frontend ke AI service Python; pencarian AI, OCR text, dan vector dikelola di service AI/Qdrant.
 - Middleware `EnsureFrontendRequestsAreStateful` ditambahkan eksplisit untuk CSRF protection.
 - CORS di-restrict ke origins, methods, dan headers eksplisit; wildcard dihapus.
 - Default `.env.example`: `APP_DEBUG=false`, `LOG_LEVEL=warning`, `SESSION_SECURE_COOKIE=true`, `SESSION_EXPIRE_ON_CLOSE=true`.
@@ -107,7 +104,6 @@ archives
   belongsTo subcategories
   hasOne archive_files
   hasOne archive_physical_locations
-  hasOne ocr_texts
 
 storage domain
   cabinets
@@ -123,7 +119,6 @@ retention domain
 ai gateway
   /chat/ask
   /ai/chat/ask
-  /ai/tools/archives/search
 ```
 
 ## Working Rules
@@ -144,7 +139,7 @@ app/Http/Controllers/AuthController.php
 app/Http/Controllers/ArchiveController.php
   CRUD archive + upload/update file archive
   auto-assign physical location via ArchiveStorageService
-  delete vector from Qdrant saat destroy/retention destroyed
+  kirim file archive ke AI service untuk OCR/vector eksternal tanpa menyimpan OCR text di Laravel
 
 app/Http/Controllers/ArchivePhysicalLocationController.php
   list/show/create/update/delete physical location archive

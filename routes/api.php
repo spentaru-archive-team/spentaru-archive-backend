@@ -130,10 +130,6 @@ Route::prefix('v1')->group(function () {
         Route::post('ai/chat/ask', [AiGatewayController::class, 'askChat']);
     });
 
-    Route::prefix('ai/tools')->middleware(['ai.tool', 'throttle:30,1'])->group(function () {
-        Route::post('/archives/search', [AiGatewayController::class, 'searchArchivesTool']);
-    });
-
     Route::prefix('dashboard')->middleware('auth:sanctum')->group(function () {
         Route::get('/', [DashboardController::class, 'index']);
         Route::get('/teachers-without-archives', [DashboardController::class, 'teachersWithoutArchives']);

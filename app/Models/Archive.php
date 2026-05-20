@@ -100,11 +100,6 @@ class Archive extends Model
         return $this->hasOne(ArchivePhysicalLocation::class);
     }
 
-    public function ocrText(): HasOne
-    {
-        return $this->hasOne(OcrText::class);
-    }
-
     public function retentionDecidedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'retention_decided_by');
