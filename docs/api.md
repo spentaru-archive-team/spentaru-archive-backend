@@ -17,6 +17,7 @@ http://localhost:8000/api/v1
 - Frontend SPA atau first-party perlu memanggil `GET /sanctum/csrf-cookie` sebelum `POST /api/v1/auth/login`.
 - Request terproteksi dikirim dengan cookie session dan header CSRF, bukan bearer token.
 - Upload file archive memakai `multipart/form-data`.
+- Metadata file archive menyimpan `vector_id` UUID dari AI service pada `archive_files.vector_id`; OCR text/vector tetap berada di service AI/Qdrant.
 - Global error JSON yang sudah ditangani konsisten untuk `401`, `403`, `405`, `422`, `429`, dan `500`.
 - Semua endpoint CRUD memakai rate limiting: POST/PUT 30 req/menit, DELETE 10 req/menit, GET list 60 req/menit.
 - File arsip hanya bisa diakses via endpoint terautentikasi `GET /api/v1/archives/{id}/preview` dan `GET /api/v1/archives/{id}/download`. URL langsung `/storage/uploads/...` tidak lagi bisa diakses publik.
@@ -55,7 +56,7 @@ http://localhost:8000/api/v1
 | `GET` | `/archives/retention/ready` | Ya | List arsip dengan `retention_status=ready_for_destruction` |
 | `GET` | `/archives/{id}` | Ya | Detail archive |
 | `PUT` | `/archives/{id}` | Ya | Update archive, file opsional |
-| `DELETE` | `/archives/{id}` | Ya | Hapus archive |
+| `DELETE` | `/archives/{id}` | Ya | Hapus archive dan vector eksternal |
 | `GET` | `/archives/{id}/preview` | Ya | Preview file archive (authenticated), throttle 60 req/menit |
 | `GET` | `/archives/{id}/download` | Ya | Download file archive (authenticated), throttle 30 req/menit |
 | `GET` | `/archives/{id}/physical-locations` | Ya | Detail lokasi fisik archive |
@@ -573,6 +574,8 @@ Perilaku:
 - Jika category sudah punya subcategory, maka `subcategory_id` wajib diisi.
 - Jika `subcategory_id` dikirim, subkategori harus berada di bawah `category_id` yang sama.
 - Sistem mencoba auto-assign lokasi fisik melalui `ArchiveStorageService`.
+- Backend mengirim file dan metadata ke `${AI_SERVICE_BASE_URL}/api/extract/text`; AI service wajib mengembalikan `data.vector_id`.
+- `vector_id` dari AI service disimpan di `archive_files.vector_id` dan tidak boleh null.
 
 ## 7. Preview & Download Archive
 
@@ -744,8 +747,9 @@ async function download(archiveId: number, customName: string) {
 ### Catatan Keamanan
 
 1. **API tidak mengirim `file_url`** — Frontend harus memakai endpoint `/preview` dan `/download` untuk akses file.
-2. **Filename di-obfuscate** — Format `{original}_{random10}_{timestamp}.{ext}` untuk mencegah guessing attack.
-3. **MIME type divalidasi server-side** — Upload file divalidasi dengan `mimetypes:` di controller, bukan hanya ekstensi.
+2. **File ada di disk private** — File fisik disimpan di `storage/app/private/uploads/` melalui disk `local`, bukan di direktori publik.
+3. **Filename di-obfuscate** — Format `{original}_{random10}_{timestamp}.{ext}` untuk mencegah guessing attack.
+4. **MIME type divalidasi server-side** — Upload file divalidasi dengan `mimetypes:` di controller, bukan hanya ekstensi.
 
 ## 8. Update Archive
 
@@ -758,8 +762,10 @@ Body mendukung partial update.
 Perilaku:
 
 - Field `uploader` tidak bisa diubah melalui endpoint ini.
-- Jika file diganti, metadata file lama dihapus dan file fisik lama ikut dibersihkan setelah transaksi sukses.
+- Backend melakukan `PATCH ${AI_SERVICE_BASE_URL}/api/vector/{vector_id}` untuk menyinkronkan vector eksternal. Payload hanya menyertakan field yang punya value atau berubah; field kosong tidak dikirim.
+- Jika file diganti, metadata file di-update lewat relasi `hasOne`, `vector_id` lama tetap dipakai, dan file fisik lama dibersihkan setelah transaksi sukses.
 - Jika `category_id` atau `subcategory_id` berubah, archive akan auto-relocate ke rak baru (rack lama di-decrement, rack baru di-increment).
+- Hapus archive (`DELETE /api/v1/archives/{id}`) memanggil `DELETE ${AI_SERVICE_BASE_URL}/api/vector/{vector_id}` sebelum row archive dan file fisik dihapus.
 
 ## 9. Arsip Tanpa Lokasi
 

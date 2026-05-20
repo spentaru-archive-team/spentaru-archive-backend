@@ -72,7 +72,7 @@ Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
 - Endpoint list `users`, `archives`, `events`, dan `archives/physical-locations` sudah memakai query `q` untuk search berbasis Laravel Scout.
 - Endpoint list `archives`, `events`, dan `archives/physical-locations` juga mendukung filter dan sort dinamis via query string.
 - Default konfigurasi Scout saat ini memakai driver `database` dari `config/scout.php`.
-- Archive bisa punya `physical_location`; OCR text/vector disimpan di service AI Python/Qdrant, bukan di Laravel.
+- Archive bisa punya `physical_location`; OCR text/vector disimpan di service AI Python/Qdrant, Laravel hanya menyimpan `archive_files.vector_id` untuk referensi vector eksternal.
 - Event punya `softfile_status` (`uploaded` / `pending_upload`) yang disinkronkan dari keberadaan `archive_files` pada archive terkait.
 - Archive auto-assign physical location via `ArchiveStorageService` saat create archive bila rule/rak tersedia.
 - Ada endpoint admin untuk CRUD `archive_storage_rules` sebagai rule penempatan arsip ke lemari.
@@ -89,8 +89,8 @@ Jika docs berbeda dengan kode aktif, utamakan kode aktif lalu perbarui docs.
 - File arsip bisa diakses via endpoint terautentikasi `GET /api/v1/archives/{id}/preview` dan `GET /api/v1/archives/{id}/download`.
 - Search query archive sudah escape karakter wildcard SQL (`%`, `_`, `\`) untuk mencegah abuse.
 - Perubahan role user di-log dan hanya bisa dilakukan oleh admin (bukan self-update).
-- Komunikasi AI service OCR memakai konfigurasi HTTP via `config/services.ai_gateway` (default `http://localhost:5000` untuk development, production wajib set env `AI_SERVICE_BASE_URL` ke HTTPS).
-- Laravel hanya meneruskan chat frontend ke AI service Python; pencarian AI, OCR text, dan vector dikelola di service AI/Qdrant.
+- Komunikasi AI service OCR/vector memakai konfigurasi HTTP via `config/services.ai_gateway` (default `http://localhost:5000` untuk development, production wajib set env `AI_SERVICE_BASE_URL` ke HTTPS).
+- Laravel meneruskan chat frontend ke AI service Python; pencarian AI, OCR text, dan vector dikelola di service AI/Qdrant. Create archive mengharapkan response AI `data.vector_id`, update archive melakukan `PATCH /api/vector/{vector_id}`, dan delete archive menghapus vector lewat AI service.
 - Middleware `EnsureFrontendRequestsAreStateful` ditambahkan eksplisit untuk CSRF protection.
 - CORS di-restrict ke origins, methods, dan headers eksplisit; wildcard dihapus.
 - Default `.env.example`: `APP_DEBUG=false`, `LOG_LEVEL=warning`, `SESSION_SECURE_COOKIE=true`, `SESSION_EXPIRE_ON_CLOSE=true`.
@@ -139,7 +139,7 @@ app/Http/Controllers/AuthController.php
 app/Http/Controllers/ArchiveController.php
   CRUD archive + upload/update file archive
   auto-assign physical location via ArchiveStorageService
-  kirim file archive ke AI service untuk OCR/vector eksternal tanpa menyimpan OCR text di Laravel
+  kirim file archive ke AI service untuk OCR/vector eksternal; Laravel menyimpan vector_id, bukan OCR text
 
 app/Http/Controllers/ArchivePhysicalLocationController.php
   list/show/create/update/delete physical location archive

@@ -14,7 +14,7 @@ Backend Laravel 13 untuk sistem arsip sekolah dengan auth Sanctum stateful berba
 ## Fitur Utama
 
 - Auth API berbasis session cookie Sanctum untuk SPA atau first-party frontend
-- CRUD arsip + upload file dengan validasi MIME type server-side
+- CRUD arsip + upload file dengan validasi MIME type server-side dan sinkronisasi vector eksternal via AI service
 - Akses file arsip melalui endpoint terautentikasi (`preview` dan `download`)
 - Auto-assign lokasi fisik arsip via `ArchiveStorageService`
 - Tracking used_capacity rack: otomatis increment/decrement saat archive dibuat, dihapus, dipindahkan, atau keputusan retensi `destroyed`
@@ -23,7 +23,7 @@ Backend Laravel 13 untuk sistem arsip sekolah dengan auth Sanctum stateful berba
 - Search text via query `q` pada endpoint list `users`, `archives`, `events`, dan `archives/physical-locations`
 - Filter dan sort dinamis via query string pada endpoint list `archives`, `events`, dan `archives/physical-locations`
 - Dashboard ringkas untuk total arsip, kategori, subkategori, dan user
-- AI tool endpoint untuk search arsip via service Python
+- AI tool endpoint `GET /api/v1/archives/internal` untuk search arsip dari service Python
 - AI chat proxy terautentikasi dengan header wajib `X-Trace-Id` dari frontend dan riwayat chat per user di Redis
 - Workflow retensi arsip: arsip tanpa lokasi, arsip siap pemusnahan, dan keputusan retensi
 - Rate limiting pada semua endpoint CRUD
@@ -31,7 +31,7 @@ Backend Laravel 13 untuk sistem arsip sekolah dengan auth Sanctum stateful berba
 - SQL wildcard escaping untuk mencegah search query abuse
 - CSRF protection via Sanctum stateful middleware
 - CORS restricted ke origins, methods, dan headers eksplisit
-- HTTPS untuk komunikasi AI service (OCR)
+- HTTPS untuk komunikasi AI service (OCR/vector)
 
 ## Role
 
@@ -45,13 +45,12 @@ composer install
 cp .env.example .env
 php artisan key:generate
 php artisan migrate
-php artisan storage:link
 php artisan serve
 ```
 
 **⚠️ AI Chat Search — Wajib Multi-Worker**
 
-Fitur AI chat dengan `use_search: true` membutuhkan callback dari AI Service ke Laravel (`POST /api/v1/ai/tools/archives/search`). `php artisan serve` (single-thread) menyebabkan deadlock karena Laravel menunggu AI selesai sementara AI menunggu Laravel memproses callback.
+Fitur AI chat dengan `use_search: true` dapat membuat AI Service memanggil kembali endpoint tool Laravel (`GET /api/v1/archives/internal`) memakai header `X-AI-Tool-Key`. `php artisan serve` (single-thread) bisa menyebabkan deadlock jika Laravel menunggu AI selesai sementara AI menunggu Laravel memproses callback.
 
 Gunakan PHP built-in server langsung dengan multi-worker:
 
@@ -138,7 +137,7 @@ File arsip **tidak lagi bisa diakses langsung** melalui URL `/storage/uploads/fi
 
 **Lokasi penyimpanan:**
 
-File fisik tetap disimpan di `storage/app/public/uploads/` dan di-symlink ke `public/storage/uploads/`. Namun, **akses langsung ke path ini tidak lagi disarankan**. Web server (Nginx/Apache) harus dikonfigurasi untuk **memblokir akses langsung** ke direktori `public/storage/uploads/` di production. File hanya disajikan melalui controller yang melakukan validasi auth.
+File fisik disimpan di disk `local` pada path internal `storage/app/private/uploads/`. File tidak di-symlink ke `public/storage` dan tidak punya URL publik. File hanya disajikan melalui controller yang melakukan validasi auth.
 
 ### Endpoint Preview File
 
@@ -154,7 +153,7 @@ GET /api/v1/archives/{id}/preview
 
 - Endpoint mencari archive berdasarkan `{id}` dan memuat relasi `files`
 - Jika archive tidak ditemukan, Laravel mengembalikan `404`
-- Jika archive tidak punya file (field `file_url` kosong), endpoint mengembalikan `404` dengan message `File tidak ditemukan`
+- Jika archive tidak punya metadata file atau file fisiknya tidak ada, endpoint mengembalikan `404` dengan message `File tidak ditemukan`
 - Response berupa file yang ditampilkan inline di browser (content-type sesuai file: `application/pdf`, `application/msword`, dll.)
 - Header `Content-Disposition` diset ke `inline` sehingga browser akan menampilkan file di tab/iframe, bukan langsung mendownload
 - Cocok untuk ditampilkan di `<iframe>`, `<embed>`, atau viewer PDF di frontend
@@ -256,7 +255,7 @@ GET /api/v1/archives/{id}/download
 
 - Endpoint mencari archive berdasarkan `{id}` dan memuat relasi `files`
 - Jika archive tidak ditemukan, Laravel mengembalikan `404`
-- Jika archive tidak punya file (field `file_url` kosong), endpoint mengembalikan `404` dengan message `File tidak ditemukan`
+- Jika archive tidak punya metadata file atau file fisiknya tidak ada, endpoint mengembalikan `404` dengan message `File tidak ditemukan`
 - Response berupa file yang didownload sebagai attachment
 - Header `Content-Disposition` diset ke `attachment; filename="..."` sehingga browser akan langsung mendownload file ke perangkat user
 - Nama file yang didownload sesuai dengan `file_name` yang tersimpan di database (bukan nama asli saat upload, melainkan nama yang sudah di-obfuscate dengan random string dan timestamp)
@@ -390,33 +389,20 @@ Kedua endpoint (`preview` dan `download`) memiliki skenario error yang sama:
 | `404` | Archive ada tapi tidak punya file | `{"status": "error", "message": "File tidak ditemukan"}` |
 | `429` | Melebihi rate limit | `{"status": "error", "message": "Terlalu banyak request"}` |
 
-### Konfigurasi Web Server Production
-
-Di production, **blokir akses langsung** ke `public/storage/uploads/` di web server Anda:
-
-**Nginx:**
-
-```nginx
-location /storage/uploads/ {
-    deny all;
-    return 403;
-}
-```
-
-**Apache (.htaccess di `public/storage/uploads/`):**
-
-```apache
-Deny from all
-```
-
-Dengan konfigurasi ini, satu-satunya cara mengakses file arsip adalah melalui endpoint authenticated yang sudah memiliki validasi auth dan rate limiting.
-
 ### Catatan Keamanan
 
-1. **Jangan simpan URL file di frontend** — Response API masih mengandung field `file_url` (`/storage/uploads/...`) di object `archive.files`. Frontend tidak boleh menggunakan URL ini langsung. Gunakan endpoint `/preview` dan `/download` sebagai gantinya.
-2. **File tetap di disk `public`** — File fisik disimpan di `storage/app/public/uploads/` untuk kemudahan backup dan manajemen file. Namun, akses HTTP langsung ke path ini harus diblokir di level web server.
+1. **Jangan simpan URL file di frontend** — API tidak menyediakan URL publik file arsip. Gunakan endpoint `/preview` dan `/download`.
+2. **File ada di disk private** — File fisik disimpan di `storage/app/private/uploads/` melalui disk `local`, bukan di direktori publik.
 3. **Filename di-obfuscate** — Nama file disimpan dengan format `{original-name}_{random10}_{timestamp}.{ext}` untuk mencegah guessing attack. Namun, ini bukan substitusi untuk autentikasi.
 4. **Validasi MIME type** — File yang di-upload divalidasi MIME type-nya di server-side menggunakan rule `mimetypes:` di controller, bukan hanya ekstensi file.
+
+## Integrasi AI Vector Archive
+
+- Create archive mengirim file dan metadata ke `${AI_SERVICE_BASE_URL}/api/extract/text`.
+- AI service wajib mengembalikan `data.vector_id`; nilai ini disimpan di `archive_files.vector_id` dan kolomnya tidak nullable.
+- Update archive melakukan `PATCH ${AI_SERVICE_BASE_URL}/api/vector/{vector_id}`. Payload hanya menyertakan field yang punya value atau berubah; field kosong tidak dikirim.
+- Delete archive memanggil `DELETE ${AI_SERVICE_BASE_URL}/api/vector/{vector_id}` sebelum metadata/file archive dihapus.
+- OCR text dan vector tetap dikelola di service AI/Qdrant; Laravel hanya menyimpan metadata file dan `vector_id`.
 
 ## Catatan Search, Filter, dan Sort
 

@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -161,6 +162,7 @@ class ApiEndpointTest extends TestCase
             'file_name' => 'test.pdf',
             'file_size' => 11,
             'file_type' => 'pdf',
+            'vector_id' => (string) Str::uuid(),
             'extraction_status' => 'done',
         ]);
 
@@ -559,6 +561,7 @@ class ApiEndpointTest extends TestCase
         Http::fake(fn () => Http::response([
             'data' => [
                 'text' => 'hasil ocr',
+                'vector_id' => (string) Str::uuid(),
             ],
         ], 200));
 
@@ -579,6 +582,35 @@ class ApiEndpointTest extends TestCase
         ])->assertCreated()
             ->assertJsonPath('status', 'success')
             ->assertJsonPath('data.subcategory_id', null);
+
+        $this->postJson('/api/v1/archives', [])
+            ->assertStatus(422)
+            ->assertJsonPath('status', 'error')
+            ->assertJsonStructure(['errors' => ['title', 'year', 'file', 'category_id']]);
+
+        $this->postJson('/api/v1/archives', [
+            'title' => 'Kategori tidak ada',
+            'year' => 2026,
+            'category_id' => 999999,
+            'file' => UploadedFile::fake()->create('arsip.pdf', 10, 'application/pdf'),
+        ])->assertStatus(422)
+            ->assertJsonPath('status', 'error');
+
+        $this->postJson('/api/v1/archives', [
+            'title' => 'Tahun tidak masuk akal',
+            'year' => 'dua ribu dua puluh enam',
+            'category_id' => $categoryWithoutSubcategory->id,
+            'file' => UploadedFile::fake()->create('arsip.pdf', 10, 'application/pdf'),
+        ])->assertStatus(422)
+            ->assertJsonPath('status', 'error');
+
+        $this->postJson('/api/v1/archives', [
+            'title' => 'File executable',
+            'year' => 2026,
+            'category_id' => $categoryWithoutSubcategory->id,
+            'file' => UploadedFile::fake()->create('arsip.exe', 10, 'application/x-msdownload'),
+        ])->assertStatus(422)
+            ->assertJsonPath('status', 'error');
 
         $this->postJson('/api/v1/archives', [
             'title' => 'Subkategori tidak boleh',
@@ -612,6 +644,7 @@ class ApiEndpointTest extends TestCase
         Http::fake(fn () => Http::response([
             'data' => [
                 'text' => 'ocr update',
+                'vector_id' => (string) Str::uuid(),
             ],
         ], 200));
 
@@ -657,10 +690,39 @@ class ApiEndpointTest extends TestCase
         ])->assertOk()
             ->assertJsonPath('data.title', 'Arsip Update');
 
+        Http::assertSent(function ($request) use ($archive) {
+            $payload = $request->data();
+
+            return $request->method() === 'PATCH'
+                && str_contains($request->url(), '/api/vector/'.$archive->files->vector_id)
+                && in_array(['name' => 'archive_id', 'contents' => (string) $archive->id], $payload, true)
+                && in_array(['name' => 'title', 'contents' => 'Arsip Update'], $payload, true)
+                && in_array(['name' => 'year', 'contents' => '2027'], $payload, true)
+                && ! collect($payload)->contains(fn ($part) => ($part['name'] ?? null) === 'category')
+                && ! collect($payload)->contains(fn ($part) => ($part['name'] ?? null) === 'subcategory');
+        });
+
+        $this->putJson('/api/v1/archives/'.$archive->id, [
+            'title' => '',
+            'year' => 'bukan angka',
+            'category_id' => 999999,
+            'subcategory_id' => 999999,
+        ])->assertStatus(422)
+            ->assertJsonPath('status', 'error');
+
         $this->put('/api/v1/archives/'.$archive->id, [
             'file' => UploadedFile::fake()->create('arsip-baru.pdf', 10, 'application/pdf'),
         ])->assertOk()
             ->assertJsonPath('status', 'success');
+
+        $archive->refresh();
+        $this->assertNotSame('test.pdf', $archive->files->file_name);
+        $this->assertNotNull($archive->files->vector_id);
+
+        $this->put('/api/v1/archives/'.$archive->id, [
+            'file' => UploadedFile::fake()->create('arsip-baru.exe', 10, 'application/x-msdownload'),
+        ])->assertStatus(422)
+            ->assertJsonPath('status', 'error');
 
         $archive->update(['retention_status' => 'ready_for_destruction']);
         $this->getJson('/api/v1/archives/retention/ready')

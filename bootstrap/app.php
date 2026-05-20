@@ -93,12 +93,12 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         $exceptions->respond(function (Response $response) {
-            if ($response->getStatusCode() >= 500) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Terjadi kesalahan pada server',
-                ], 500);
-            }
+            // if ($response->getStatusCode() >= 500) {
+            //     return response()->json([
+            //         'status' => 'error',
+            //         'message' => 'Terjadi kesalahan pada server',
+            //     ], 500);
+            // }
 
             return $response;
         });
