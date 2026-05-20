@@ -123,7 +123,7 @@ class UserController extends Controller
                 'message' => 'Error: Anda tidak diizinkan menghapus akun Anda sendiri yang sedang aktif.',
             ], 403);
         }
-        
+
         $user = User::findOrFail($id);
         $username = $user->username;
         $user->delete();
