@@ -104,10 +104,11 @@ class ArchiveStorageRuleSeeder extends Seeder
             ArchiveStorageRule::query()->updateOrCreate(
                 [
                     'category_id' => $categoryId,
-                    'subcategory_id' => $subcategoryId,
+                    'subcategory_unique_key' => $subcategoryId ?? 0,
                     'priority' => $item['priority'],
                 ],
                 [
+                    'subcategory_id' => $subcategoryId,
                     'cabinet_id' => $cabinetId,
                 ]
             );

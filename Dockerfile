@@ -28,6 +28,7 @@ LABEL maintainer="spentaru-archive"
 # You can override any of these at runtime with Docker Compose `environment`
 # or `env_file`.
 
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
