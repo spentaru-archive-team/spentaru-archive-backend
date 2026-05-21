@@ -28,13 +28,6 @@ LABEL maintainer="spentaru-archive"
 # You can override any of these at runtime with Docker Compose `environment`
 # or `env_file`.
 
-ENV APP_ENV=local \
-    APP_DEBUG=true \
-    APP_URL=http://localhost:8000 \
-    LOG_CHANNEL=stderr \
-    CACHE_STORE=file \
-    SESSION_DRIVER=file \
-    QUEUE_CONNECTION=sync
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
