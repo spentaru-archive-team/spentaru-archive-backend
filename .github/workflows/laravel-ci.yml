@@ -162,4 +162,9 @@ jobs:
         push: true
         tags: ${{ vars.DOCKERHUB_USERNAME }}/spentaru-archive-backend:latest
       
-      
+    - name: Trigger Main Deployment Repo
+      uses: peter-evans/repository-dispatch@v3
+      with:
+        token: ${{ secrets.MAIN_REPO_TRIGGER_PAT }}
+        repository: spentaru-archive-team/spentaru-archive-deploy
+        event-type: backend_updated
