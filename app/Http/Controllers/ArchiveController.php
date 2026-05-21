@@ -87,7 +87,7 @@ class ArchiveController extends Controller
             ], 422);
         }
 
-        if ($category && ! $category->has_subcategory && $subcategoryId !== null) {
+        if ($category && !$category->has_subcategory && $subcategoryId !== null) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Subkategori harus kosong karena kategori ini tidak mempunyai sub kategori',

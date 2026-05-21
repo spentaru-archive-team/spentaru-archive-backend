@@ -43,37 +43,37 @@ class ArchiveCategorySeeder extends Seeder
             [
                 'name' => 'Arsip Alumni',
                 'description' => 'Dokumen tracer study dan administrasi alumni.',
-                'has_subcategory' => false,
+                'has_subcategory' => true,
             ],
             [
                 'name' => 'MBG',
                 'description' => 'Arsip program Makan Bergizi Gratis.',
-                'has_subcategory' => false,
+                'has_subcategory' => true,
             ],
             [
                 'name' => 'Program Literasi',
                 'description' => 'Arsip pojok baca, jurnal literasi, dan monitoring.',
-                'has_subcategory' => false,
+                'has_subcategory' => true,
             ],
             [
                 'name' => 'Pengembang Sekolah',
                 'description' => 'Dokumen peningkatan mutu dan pengembangan sekolah.',
-                'has_subcategory' => false,
+                'has_subcategory' => true,
             ],
             [
                 'name' => 'Backup / Arsip Dokumen',
                 'description' => 'Dokumen pasif yang tetap perlu disimpan sebagai cadangan.',
-                'has_subcategory' => false,
+                'has_subcategory' => true,
             ],
             [
                 'name' => 'Program Adiwiyata',
                 'description' => 'Arsip kegiatan lingkungan hidup dan Adiwiyata.',
-                'has_subcategory' => false,
+                'has_subcategory' => true,
             ],
             [
                 'name' => 'RKT, RKAS, RKJM',
                 'description' => 'Dokumen perencanaan tahunan dan jangka menengah sekolah.',
-                'has_subcategory' => false,
+                'has_subcategory' => true,
             ],
         ];
 
