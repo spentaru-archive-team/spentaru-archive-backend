@@ -61,7 +61,7 @@ class CategoryController extends Controller
         $category = ArchiveCategory::create([
             'name' => $validated['name'],
             'description' => $validated['description'] ?? null,
-            'has_subcategory' => !empty($validated['subcategories']),
+            'has_subcategory' => ! empty($validated['subcategories']),
         ]);
 
         $subcategories = $validated['subcategories'] ?? [];
@@ -104,7 +104,7 @@ class CategoryController extends Controller
         $category->update([
             'name' => $validated['name'] ?? $category->name,
             'description' => $validated['description'] ?? $category->description,
-            'has_subcategory' => !empty($validated['subcategories']),
+            'has_subcategory' => ! empty($validated['subcategories']),
         ]);
 
         $subcategories = $validated['subcategories'] ?? [];
