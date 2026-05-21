@@ -19,6 +19,8 @@ class ArchiveFile extends Model
         'extraction_status',
     ];
 
+    protected $appends = ['file_url'];
+
     protected function casts(): array
     {
         return [
@@ -26,6 +28,15 @@ class ArchiveFile extends Model
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
+    }
+
+    public function getFileUrlAttribute(): ?string
+    {
+        if (! $this->file_name) {
+            return null;
+        }
+
+        return '/storage/uploads/'.$this->file_name;
     }
 
     public function archive(): BelongsTo
