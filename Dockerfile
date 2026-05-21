@@ -27,39 +27,6 @@ LABEL maintainer="spentaru-archive"
 # Defaults that make the image easy to run locally.
 # You can override any of these at runtime with Docker Compose `environment`
 # or `env_file`.
-ENV APP_ENV=local \
-    APP_DEBUG=true \
-    APP_URL=http://localhost:8000 \
-    APP_TIMEZONE=Asia/Jakarta \
-    APP_LOCALE=en \
-    APP_FALLBACK_LOCALE=en \
-    APP_FAKER_LOCALE=en_US \
-    LOG_CHANNEL=stderr \
-    LOG_STACK=single \
-    LOG_LEVEL=warning \
-    CACHE_STORE=file \
-    SESSION_DRIVER=file \
-    SESSION_LIFETIME=120 \
-    SESSION_SECURE_COOKIE=false \
-    SESSION_EXPIRE_ON_CLOSE=false \
-    QUEUE_CONNECTION=sync \
-    FILESYSTEM_DISK=local \
-    DB_CONNECTION=mysql \
-    DB_HOST=127.0.0.1 \
-    DB_PORT=3306 \
-    DB_DATABASE=spentaru_archive_db \
-    DB_USERNAME=root \
-    REDIS_CLIENT=predis \
-    REDIS_HOST=127.0.0.1 \
-    REDIS_PORT=6379 \
-    SCOUT_DRIVER=database \
-    AI_SERVICE_BASE_URL=http://localhost:5000 \
-    AI_SERVICE_TIMEOUT=30 \
-    AI_TOOL_ACCESS_HEADER=X-AI-Tool-Key \
-    SANCTUM_STATEFUL_DOMAINS=localhost:3000,127.0.0.1:3000,localhost:5173,127.0.0.1:5173 \
-    CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173 \
-    RUN_MIGRATIONS=false \
-    RUN_SEEDER=false
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \

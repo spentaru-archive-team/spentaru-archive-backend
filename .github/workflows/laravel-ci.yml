@@ -3,10 +3,10 @@ name: Laravel CI (main)
 on:
   push:
     branches:
-      - main
+      - dev
   pull_request:
     branches:
-      - main
+      - dev
   workflow_dispatch:
 
 permissions:
@@ -160,6 +160,6 @@ jobs:
         context: .
         file: ./Dockerfile
         push: true
-        tags: ${{ vars.DOCKERHUB_USERNAME }}/spentaru-archive-backend:latest
+        tags: ${{ vars.DOCKERHUB_USERNAME }}/spentaru-archive-backend:test
       
       
