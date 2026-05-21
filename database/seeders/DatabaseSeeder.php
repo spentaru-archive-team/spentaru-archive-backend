@@ -17,25 +17,24 @@ class DatabaseSeeder extends Seeder
         if (env('APP_ENV') == 'local') {
             $this->call([
                 UserSeeder::class,
+                ArchiveCategorySeeder::class,
+                SubcategorySeeder::class,
+                CabinetSeeder::class,
                 RackSeeder::class,
                 EventSeeder::class,
                 ArchiveStorageRuleSeeder::class,
                 ArchiveSeeder::class,
                 ArchiveFileSeeder::class,
                 ArchivePhysicalLocationSeeder::class,
-                ArchiveCategorySeeder::class,
-                SubcategorySeeder::class,
-                CabinetSeeder::class,
             ]);
         } else {
             $this->call([
                 ProductionUserSeeder::class,
-                RackSeeder::class,
-                ArchiveStorageRuleSeeder::class,
-                ArchivePhysicalLocationSeeder::class,
                 ArchiveCategorySeeder::class,
                 SubcategorySeeder::class,
                 CabinetSeeder::class,
+                RackSeeder::class,
+                ArchiveStorageRuleSeeder::class,
             ]);
         }
     }
