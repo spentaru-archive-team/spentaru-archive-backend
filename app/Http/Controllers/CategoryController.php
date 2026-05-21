@@ -33,7 +33,7 @@ class CategoryController extends Controller
                 if (filled($q)) {
                     $this->applyCategorySearch($query, $q);
                 }
-            });
+            })->orderBy('id');
 
         if ($request->boolean('all')) {
             $categories = $categories->get();
