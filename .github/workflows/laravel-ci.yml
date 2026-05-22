@@ -168,5 +168,5 @@ jobs:
       run: |
         gh api \
           --method POST \
-          repos/spentaru-archive-team/spentaru-archive-deploy/actions/workflows/deploy.yml/dispatches \
+          repos/ezzarw/spentaru-archive-deploy-dev/actions/workflows/deploy.yml/dispatches \
           -f ref=dev
