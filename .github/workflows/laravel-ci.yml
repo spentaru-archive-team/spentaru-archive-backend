@@ -161,12 +161,3 @@ jobs:
         file: ./Dockerfile
         push: true
         tags: ${{ vars.DOCKERHUB_USERNAME }}/spentaru-archive-backend:latest
-      
-    - name: Trigger Dev Deployment
-      env:
-        GH_TOKEN: ${{ secrets.MAIN_REPO_TRIGGER_PAT }}
-      run: |
-        gh api \
-          --method POST \
-          repos/ezzarw/spentaru-archive-deploy-dev/actions/workflows/deploy.yml/dispatches \
-          -f ref=dev
