@@ -23,7 +23,11 @@ use Illuminate\Support\Str as SupportStr;
 
 class ArchiveController extends Controller
 {
-    private const ARCHIVE_FILE_DISK = 'local';
+    // private const getArchiveDisk() = 'local';
+    private static function getArchiveDisk(): string
+    {
+        return config('filesystems.default', 's3');
+    }
 
     private const ARCHIVE_FILE_DIRECTORY = 'uploads';
 
@@ -50,7 +54,7 @@ class ArchiveController extends Controller
 
     private function storeArchiveFile(UploadedFile $file, string $filename): string
     {
-        return $file->storeAs(self::ARCHIVE_FILE_DIRECTORY, $filename, self::ARCHIVE_FILE_DISK);
+        return $file->storeAs(self::ARCHIVE_FILE_DIRECTORY, $filename, self::getArchiveDisk());
     }
 
     private function deleteArchiveFile(?ArchiveFile $file): void
@@ -58,7 +62,7 @@ class ArchiveController extends Controller
         $path = $this->archiveFilePath($file);
 
         if ($path) {
-            Storage::disk(self::ARCHIVE_FILE_DISK)->delete($path);
+            Storage::disk(self::getArchiveDisk())->delete($path);
         }
     }
 
@@ -66,7 +70,7 @@ class ArchiveController extends Controller
     {
         $path = $this->archiveFilePath($file);
 
-        if (! $path || ! Storage::disk(self::ARCHIVE_FILE_DISK)->exists($path)) {
+        if (! $path || ! Storage::disk(self::getArchiveDisk())->exists($path)) {
             abort(response()->json([
                 'status' => 'error',
                 'message' => 'File tidak ditemukan',
@@ -424,7 +428,7 @@ class ArchiveController extends Controller
 
             $archive->files()->create($payload_file);
         } catch (\Throwable $th) {
-            Storage::disk(self::ARCHIVE_FILE_DISK)->delete($storedPath);
+            Storage::disk(self::getArchiveDisk())->delete($storedPath);
             $archive?->delete();
 
             throw $th;
@@ -584,7 +588,7 @@ class ArchiveController extends Controller
             });
         } catch (\Throwable $th) {
             if ($storedPath) {
-                Storage::disk(self::ARCHIVE_FILE_DISK)->delete($storedPath);
+                Storage::disk(self::getArchiveDisk())->delete($storedPath);
             }
 
             throw $th;
@@ -705,7 +709,7 @@ class ArchiveController extends Controller
 
         $storagePath = $this->requireArchiveFilePath($archive->files);
 
-        return Storage::disk(self::ARCHIVE_FILE_DISK)->response($storagePath, $archive->files->file_name);
+        return Storage::disk(self::getArchiveDisk())->response($storagePath, $archive->files->file_name);
     }
 
     public function download(string $id)
@@ -714,6 +718,6 @@ class ArchiveController extends Controller
 
         $storagePath = $this->requireArchiveFilePath($archive->files);
 
-        return Storage::disk(self::ARCHIVE_FILE_DISK)->download($storagePath, $archive->files->file_name);
+        return Storage::disk(self::getArchiveDisk())->download($storagePath, $archive->files->file_name);
     }
 }
