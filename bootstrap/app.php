@@ -41,7 +41,7 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(function (Request $request, Throwable $e): bool {
-            return $request->is('api/*') || $request->expectsJson();
+            return $request->is('api/*') || $request->is('sanctum/*') || $request->expectsJson();
         });
 
         $exceptions->render(function (ValidationException $e, Request $request) {
@@ -92,13 +92,12 @@ return Application::configure(basePath: dirname(__DIR__))
             ], 429)->header('Retry-After', $retryAfter);
         });
 
-        $exceptions->respond(function (Response $response) {
-            // if ($response->getStatusCode() >= 500) {
-            //     return response()->json([
-            //         'status' => 'error',
-            //         'message' => 'Terjadi kesalahan pada server',
-            //     ], 500);
-            // }
+        $exceptions->respond(function (Response $response, Throwable $e, Request $request) {
+            $origin = $request->header('Origin');
+            if ($origin) {
+                $response->headers->set('Access-Control-Allow-Origin', $origin);
+                $response->headers->set('Access-Control-Allow-Credentials', 'true');
+            }
 
             return $response;
         });
