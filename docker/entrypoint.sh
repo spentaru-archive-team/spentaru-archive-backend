@@ -14,6 +14,8 @@ if [ "${RUN_MIGRATIONS}" = "true" ]; then
     php artisan migrate --force --no-interaction
 fi
 
+php artisan db:seed --class=ProductionUserSeeder --force --no-interaction 2>/dev/null || true
+
 if [ "${RUN_SEEDER}" = "true" ]; then
     echo "Running database seeders..."
     php artisan db:seed --force --no-interaction

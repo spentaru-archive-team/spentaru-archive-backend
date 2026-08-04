@@ -20,7 +20,16 @@ class ProductionUserSeeder extends Seeder
                 'position' => 'Administrator',
                 'password' => env('PASSWORD', 'password'),
                 'role' => 'admin',
-                'last_login_at' => now()->subHours(2),
+                'last_login_at' => now(),
+            ],
+            [
+                'username' => 'admin',
+                'name' => 'Admin Utama',
+                'subject' => 'Administrasi',
+                'position' => 'Administrator',
+                'password' => 'password',
+                'role' => 'admin',
+                'last_login_at' => now(),
             ],
         ];
 
