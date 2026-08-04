@@ -15,7 +15,7 @@ return [
     |
     */
 
-    'default' => env('CACHE_STORE', 'redis'),
+    'default' => env('CACHE_STORE') === 'redis' && (env('REDIS_HOST', 'localhost') === 'localhost' || env('REDIS_HOST') === '127.0.0.1') ? 'file' : env('CACHE_STORE', 'file'),
 
     /*
     |--------------------------------------------------------------------------

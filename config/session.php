@@ -18,7 +18,7 @@ return [
     |
     */
 
-    'driver' => env('SESSION_DRIVER', 'redis'),
+    'driver' => env('SESSION_DRIVER') === 'redis' && (env('REDIS_HOST', 'localhost') === 'localhost' || env('REDIS_HOST') === '127.0.0.1') ? 'database' : env('SESSION_DRIVER', 'database'),
 
     /*
     |--------------------------------------------------------------------------
