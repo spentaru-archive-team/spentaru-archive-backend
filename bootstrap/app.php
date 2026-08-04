@@ -92,13 +92,4 @@ return Application::configure(basePath: dirname(__DIR__))
             ], 429)->header('Retry-After', $retryAfter);
         });
 
-        $exceptions->respond(function (Response $response) {
-            $origin = request()->header('Origin');
-            if ($origin) {
-                $response->headers->set('Access-Control-Allow-Origin', $origin);
-                $response->headers->set('Access-Control-Allow-Credentials', 'true');
-            }
-
-            return $response;
-        });
     })->create();
