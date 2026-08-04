@@ -20,7 +20,7 @@ RUN composer install \
 # ------------------------------------------------------------
 # Stage 2: Runtime image
 # ------------------------------------------------------------
-FROM php:8.5-cli
+FROM php:8.3-cli
 
 LABEL maintainer="spentaru-archive"
 
