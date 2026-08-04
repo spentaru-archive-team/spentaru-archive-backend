@@ -199,7 +199,7 @@ return [
     |
     */
 
-    'same_site' => env('SESSION_SAME_SITE', 'none'),
+    'same_site' => (env('SESSION_SAME_SITE') === 'lax' || !env('SESSION_SAME_SITE')) ? 'none' : env('SESSION_SAME_SITE', 'none'),
 
     /*
     |--------------------------------------------------------------------------
