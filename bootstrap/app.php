@@ -28,6 +28,11 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
 
+        $middleware->validateCsrfTokens(except: [
+            'api/v1/auth/login',
+            'api/v1/auth/token-login',
+        ]);
+
         $middleware->alias([
             'admin' => Admin::class,
             'auth' => Authenticate::class,
