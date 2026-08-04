@@ -19,8 +19,9 @@ return [
     */
 
     'stateful' => array_values(array_unique(array_filter(array_map(
-        static fn (string $domain) => trim($domain),
+        static fn (string $domain) => trim(preg_replace('#^https?://#i', '', $domain)),
         explode(',', implode(',', [
+            'spentaru-archive.vercel.app',
             'localhost',
             '127.0.0.1',
             'localhost:3000',
