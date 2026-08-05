@@ -26,6 +26,11 @@ class ArchiveCategory extends Model
         ];
     }
 
+    public function setHasSubcategoryAttribute($value): void
+    {
+        $this->attributes['has_subcategory'] = filter_var($value, FILTER_VALIDATE_BOOLEAN) ? 'true' : 'false';
+    }
+
     public function toSearchableArray()
     {
         return [
