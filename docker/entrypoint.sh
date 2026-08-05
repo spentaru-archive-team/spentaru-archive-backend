@@ -1,10 +1,8 @@
 #!/bin/sh
-set -e
 
 cd /var/www/html
 
-
-php artisan config:clear --no-interaction
+php artisan config:clear --no-interaction 2>/dev/null || true
 php artisan cache:clear --no-interaction 2>/dev/null || true
 
 php artisan storage:link --no-interaction 2>/dev/null || true
