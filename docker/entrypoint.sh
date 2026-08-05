@@ -2,6 +2,8 @@
 
 cd /var/www/html
 
+rm -f bootstrap/cache/*.php
+
 php artisan config:clear --no-interaction 2>/dev/null || true
 php artisan cache:clear --no-interaction 2>/dev/null || true
 
