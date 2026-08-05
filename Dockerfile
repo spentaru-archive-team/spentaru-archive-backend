@@ -34,6 +34,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     libfreetype6-dev \
     libjpeg-dev \
+    libpq-dev \
     libonig-dev \
     libpng-dev \
     libxml2-dev \
@@ -48,6 +49,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         mbstring \
         pcntl \
         pdo_mysql \
+        pdo_pgsql \
+        pgsql \
         opcache \
         xml \
         zip \
